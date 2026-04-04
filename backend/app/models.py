@@ -2,7 +2,7 @@ import enum
 import uuid
 from datetime import datetime
 
-from sqlalchemy import JSON, Boolean, DateTime, Enum, Float, ForeignKey, Integer, Numeric, String, Text
+from sqlalchemy import JSON, Boolean, DateTime, Enum, Float, ForeignKey, Integer, Numeric, String, Text, UniqueConstraint
 from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import Mapped, mapped_column
 
@@ -25,6 +25,22 @@ class OrderStatus(str, enum.Enum):
     filled = "filled"
     cancelled = "cancelled"
     pending = "pending"
+
+
+class TradeMode(str, enum.Enum):
+    paper = "paper"
+    live = "live"
+
+
+class User(Base):
+    __tablename__ = "users"
+
+    id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    email: Mapped[str] = mapped_column(String(255), unique=True, nullable=False, index=True)
+    password_hash: Mapped[str] = mapped_column(String(255), nullable=False)
+    balance: Mapped[float] = mapped_column(Numeric(14, 2), default=10000)
+    is_active: Mapped[bool] = mapped_column(Boolean, default=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
 
 
 class StrategyConfig(Base):
@@ -79,7 +95,17 @@ class LogEntry(Base):
     __tablename__ = "logs"
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
-    level: Mapped[LogLevel] = mapped_column(Enum(LogLevel), nullable=False)
+    user_id: Mapped[uuid.UUID | None] = mapped_column(UUID(as_uuid=True), ForeignKey("users.id"), nullable=True, index=True)
+    level: Mapped[LogLevel] = mapped_column(
+        Enum(
+            LogLevel,
+            name="log_level",
+            native_enum=True,
+            create_type=False,
+            values_callable=lambda enum_cls: [member.value for member in enum_cls],
+        ),
+        nullable=False,
+    )
     message: Mapped[str] = mapped_column(Text, nullable=False)
     details: Mapped[dict | None] = mapped_column(JSON, nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
@@ -91,8 +117,13 @@ class AppSettings(Base):
     id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
     api_key_masked: Mapped[str | None] = mapped_column(String(255), nullable=True)
     api_secret_masked: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    api_key: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    api_secret: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    exchange_name: Mapped[str] = mapped_column(String(50), default="binance")
+    trade_mode: Mapped[TradeMode] = mapped_column(Enum(TradeMode), default=TradeMode.paper)
     paper_trading: Mapped[bool] = mapped_column(Boolean, default=True)
     dark_mode: Mapped[bool] = mapped_column(Boolean, default=True)
+    simulated_balance: Mapped[float] = mapped_column(Numeric(14, 2), default=10000)
     updated_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
 
 
@@ -110,6 +141,7 @@ class PaperOrder(Base):
     __tablename__ = "paper_orders"
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    user_id: Mapped[uuid.UUID | None] = mapped_column(UUID(as_uuid=True), ForeignKey("users.id"), nullable=True, index=True)
     side: Mapped[OrderSide] = mapped_column(Enum(OrderSide), nullable=False)
     asset: Mapped[str] = mapped_column(String(20), nullable=False)
     price: Mapped[float] = mapped_column(Numeric(14, 4), nullable=False)
@@ -117,3 +149,25 @@ class PaperOrder(Base):
     status: Mapped[OrderStatus] = mapped_column(Enum(OrderStatus), default=OrderStatus.filled)
     simulated: Mapped[bool] = mapped_column(Boolean, default=True)
     created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
+
+
+class UserBalance(Base):
+    __tablename__ = "user_balance"
+
+    user_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("users.id"), primary_key=True, nullable=False
+    )
+    balance: Mapped[float] = mapped_column(Numeric(14, 2), default=10000)
+    updated_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+
+
+class UserPosition(Base):
+    __tablename__ = "user_positions"
+    __table_args__ = (UniqueConstraint("user_id", "asset", name="uq_user_positions_user_asset"),)
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    user_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), ForeignKey("users.id"), nullable=False, index=True)
+    asset: Mapped[str] = mapped_column(String(20), nullable=False)
+    quantity: Mapped[float] = mapped_column(Numeric(14, 4), default=0)
+    avg_entry_price: Mapped[float] = mapped_column(Numeric(14, 4), default=0)
+    updated_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)

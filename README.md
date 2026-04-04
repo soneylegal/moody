@@ -11,15 +11,40 @@ Estrutura inicial com:
 - backend/ → API e regras iniciais
 - mobile/ → app React Native com telas e navegação
 - db/schema.sql → schema PostgreSQL
+- docker-compose.yml → orquestra PostgreSQL + Backend
 
-## 1) Banco PostgreSQL
+## Execução rápida (recomendado)
+
+Suba banco + API com Docker Compose (sem mobile):
+
+1. Na raiz do projeto, rode:
+   - `docker compose up --build -d`
+2. API disponível em:
+   - http://localhost:8000
+3. Swagger:
+   - http://localhost:8000/docs
+
+O PostgreSQL é inicializado automaticamente com [db/schema.sql](db/schema.sql).
+
+### Reinicializar banco do zero
+
+Para apagar volume e reexecutar o schema:
+
+- `docker compose down -v`
+- `docker compose up --build -d`
+
+## Execução manual (alternativa)
+
+Use este modo apenas se não quiser Docker para backend/banco.
+
+### 1) Banco PostgreSQL
 
 Crie o banco e rode o schema:
 
 1. Crie um banco `swingbot` no PostgreSQL.
 2. Execute o arquivo [db/schema.sql](db/schema.sql).
 
-## 2) Backend (FastAPI)
+### 2) Backend (FastAPI)
 
 No diretório backend:
 
@@ -31,6 +56,19 @@ No diretório backend:
 
 Swagger: http://localhost:8000/docs
 
+### Recursos implementados no backend
+
+- JWT Auth: `POST /auth/register`, `POST /auth/login`, `POST /auth/refresh`, `GET /auth/me`
+- Rotas protegidas por Bearer token (dashboard/strategy/backtest/logs/settings/paper)
+- WebSocket de mercado: `ws://localhost:8000/ws/market/{ASSET}`
+- Backtest com pandas: `POST /backtest/run`
+- Integração exchange (paper/live) com `ccxt`
+
+Usuário seed de desenvolvimento:
+
+- email: `admin@botbot.local`
+- senha: `admin123`
+
 ## 3) Mobile (React Native)
 
 No diretório mobile:
@@ -40,13 +78,25 @@ No diretório mobile:
 2. Rode o app:
    - `npm run start`
 
-Defina a URL da API em [mobile/src/services/api.ts](mobile/src/services/api.ts).
+Defina a URL da API com variável de ambiente:
+
+- `EXPO_PUBLIC_API_BASE_URL=http://localhost:8000`
+
+Exemplo (web):
+
+- `EXPO_PUBLIC_API_BASE_URL=http://localhost:8000 npm run start`
+
+No app, a tela inicial agora é de autenticação (não carrega dashboard sem JWT).
+
+> Em device físico, troque `localhost` pelo IP da máquina.
+
+> O mobile não está dockerizado por design.
 
 ## Telas implementadas
 
-- Dashboard (gráfico em tempo real mock + status + P/L diário)
+- Dashboard (gráfico em tempo real via WebSocket + status + P/L diário)
 - Configuração da Estratégia (ativo, timeframe, sliders de MAs)
-- Backtesting (gráfico e métricas)
+- Backtesting (gráfico, métricas e execução via botão)
 - Logs e Notificações (lista colorida)
-- Settings (API Key/Secret mascarados, toggles, teste conexão)
+- Settings (API Key/Secret, exchange, modo paper/live, toggles, teste conexão)
 - Paper Trading (Buy/Sell, saldo, posição e ordens recentes)
