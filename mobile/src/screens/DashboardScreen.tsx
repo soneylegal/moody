@@ -16,6 +16,7 @@ export function DashboardScreen() {
   const [lastGoodLong, setLastGoodLong] = useState<NonNullable<DashboardData['ma_long_series']>>([]);
   const [loading, setLoading] = useState(true);
   const [updatePaused, setUpdatePaused] = useState(false);
+  const [chartInteracting, setChartInteracting] = useState(false);
   const [wsNonce, setWsNonce] = useState(0);
   const { strategy } = useStrategyContext();
   const styles = useMemo(() => createStyles(colors), [colors]);
@@ -183,6 +184,7 @@ export function DashboardScreen() {
     [currency]
   );
   const formatSignedMoney = (value: number) => `${value > 0 ? '+' : ''}${moneyFmt.format(value)}`;
+  const formatSignedPercent = (value: number) => `${value > 0 ? '+' : ''}${value.toFixed(2)}%`;
 
   const statusMessage = data?.asset
     ? `Monitorando ${data.asset} no mercado para possíveis entradas`
@@ -200,6 +202,7 @@ export function DashboardScreen() {
     <ScrollView
       style={styles.container}
       contentContainerStyle={styles.content}
+      scrollEnabled={!chartInteracting}
       refreshControl={<RefreshControl refreshing={loading} onRefresh={loadChartData} tintColor={colors.primary} />}
     >
       <Text style={styles.title}>Ativo: {data?.asset ?? '-'}</Text>
@@ -220,6 +223,7 @@ export function DashboardScreen() {
           maLong={longSeries}
           darkMode={darkMode}
           height={300}
+          onInteractionChange={setChartInteracting}
         />
       ) : (
         <Text style={{ textAlign: 'center', marginVertical: 20, color: colors.muted }}>
@@ -227,23 +231,33 @@ export function DashboardScreen() {
         </Text>
       )}
 
+      {loading && data ? (
+        <View style={styles.loadingInline}>
+          <ActivityIndicator color={colors.primary} size="small" />
+          <Text style={styles.loadingText}>Atualizando dados…</Text>
+        </View>
+      ) : null}
+
       {updatePaused ? <Text style={styles.paused}>Atualização pausada</Text> : null}
 
       <View style={styles.card}>
         <Text style={styles.row}>Bot Status: <Text style={styles.success}>{statusMessage}</Text></Text>
         <Text style={styles.subtle}>Fonte de preço: {data?.price_status ?? 'Preço indisponível'}</Text>
+        <Text style={styles.subtle}>Indicador do Dashboard = variação do ativo no dia (não é o P/L da sua carteira).</Text>
         <Text style={styles.row}>
-          P/L Diário:{' '}
+          Variação diária do ativo:{' '}
           <Text
             style={
-              Number(data?.daily_pnl) > 0
+              Number(data?.daily_change_value ?? data?.daily_pnl ?? 0) > 0
                 ? styles.success
-                : Number(data?.daily_pnl) < 0
+                : Number(data?.daily_change_value ?? data?.daily_pnl ?? 0) < 0
                 ? styles.error
                 : styles.row
             }
           >
-            {formatSignedMoney(Number(data?.daily_pnl ?? 0))}
+            {formatSignedMoney(Number(data?.daily_change_value ?? data?.daily_pnl ?? 0))}
+            {' · '}
+            {formatSignedPercent(Number(data?.daily_change_percent ?? 0))}
           </Text>
         </Text>
       </View>
@@ -265,4 +279,6 @@ const createStyles = (colors: ReturnType<typeof useAppTheme>['colors']) =>
     error: { color: colors.danger },
     sectionTitle: { color: colors.text, fontWeight: '700', marginBottom: 8 },
     paused: { color: colors.warning, fontSize: 12, marginTop: 8 },
+    loadingInline: { marginTop: 10, flexDirection: 'row', alignItems: 'center', justifyContent: 'center' },
+    loadingText: { color: colors.muted, fontSize: 12, marginLeft: 8 },
   });

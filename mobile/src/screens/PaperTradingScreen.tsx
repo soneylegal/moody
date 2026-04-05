@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useMemo, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { ActivityIndicator, Alert, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 import { Picker } from '@react-native-picker/picker';
 import { useStrategyContext } from '../context/StrategyContext';
@@ -28,7 +28,9 @@ export function PaperTradingScreen() {
   const [orderQty, setOrderQty] = useState('1');
   const [showManual, setShowManual] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
+  const [isRefreshing, setIsRefreshing] = useState(false);
   const { strategy } = useStrategyContext();
+  const refreshLock = useRef(false);
 
   const asset = (strategy?.asset || state?.focus_asset || 'PETR4').toUpperCase();
 
@@ -42,6 +44,16 @@ export function PaperTradingScreen() {
 
   const formatSignedMoney = useCallback((value: number) => `${value > 0 ? '+' : ''}${moneyFmt.format(value)}`, [moneyFmt]);
 
+  const insightTone = state?.insight_tone ?? 'neutral';
+  const insightStyle =
+    insightTone === 'success'
+      ? styles.insightSuccess
+      : insightTone === 'danger'
+      ? styles.insightDanger
+      : insightTone === 'warning'
+      ? styles.insightWarning
+      : styles.insightNeutral;
+
   const loadState = useCallback(async () => {
     const data = await fetchPaperState();
     setState(data);
@@ -53,7 +65,15 @@ export function PaperTradingScreen() {
   }, []);
 
   const refreshAll = useCallback(async () => {
-    await Promise.all([loadState(), loadOrders()]);
+    if (refreshLock.current) return;
+    refreshLock.current = true;
+    try {
+      setIsRefreshing(true);
+      await Promise.all([loadState(), loadOrders()]);
+    } finally {
+      refreshLock.current = false;
+      setIsRefreshing(false);
+    }
   }, [loadOrders, loadState]);
 
   useEffect(() => {
@@ -172,16 +192,32 @@ export function PaperTradingScreen() {
     <ScrollView style={styles.container} contentContainerStyle={styles.content}>
       <Text style={styles.badge}>EXTRATO AUTÔNOMO DO BOT</Text>
 
+      {isRefreshing ? (
+        <View style={styles.loadingInline}>
+          <ActivityIndicator color={colors.primary} size="small" />
+          <Text style={styles.loadingText}>Sincronizando ordens e P/L…</Text>
+        </View>
+      ) : null}
+
       <View style={styles.ledgerHeader}>
+        <Text style={styles.walletBalance}>Saldo disponível: {moneyFmt.format(Number(state?.balance ?? 0))}</Text>
         <Text style={styles.ledgerLine}>Ativo em foco: {asset}</Text>
         <Text style={styles.ledgerLine}>Preço atual: {moneyFmt.format(Number(state?.current_price ?? 0))}</Text>
         <Text style={styles.ledgerLine}>Posição atual: {(state?.open_position_qty ?? 0).toFixed(4)} {state?.open_position_asset ?? '-'}</Text>
         <Text style={styles.ledgerLine}>Preço médio: {moneyFmt.format(Number(state?.avg_entry_price ?? 0))}</Text>
+        <Text style={styles.ledgerLine}>Capital investido: {moneyFmt.format(Number(state?.invested_capital ?? 0))}</Text>
         <Text style={[styles.ledgerPnl, Number(state?.floating_pnl ?? 0) >= 0 ? styles.profit : styles.loss]}>
-          P/L Atual: {formatSignedMoney(Number(state?.floating_pnl ?? 0))}
+          P/L da sua posição: {formatSignedMoney(Number(state?.floating_pnl ?? 0))} ({Number(state?.floating_pnl_percent ?? 0).toFixed(2)}%)
         </Text>
         <Text style={styles.quoteStatus}>Fonte de preço: {state?.price_status ?? 'Indisponível'}</Text>
       </View>
+
+      {state?.insight_message ? (
+        <View style={[styles.insightCard, insightStyle]}>
+          {state?.insight_title ? <Text style={styles.insightTitle}>{state.insight_title}</Text> : null}
+          <Text style={styles.insightText}>{state.insight_message}</Text>
+        </View>
+      ) : null}
 
       <Text style={styles.asset}>Ativo para consulta</Text>
       <View style={styles.pickerWrap}>
@@ -277,6 +313,7 @@ const createStyles = (colors: ReturnType<typeof useAppTheme>['colors'], darkMode
       borderWidth: 1,
       borderColor: colors.border,
     },
+    walletBalance: { color: colors.text, fontWeight: '800', marginBottom: 8, fontSize: 16 },
     ledgerLine: { color: colors.text, marginBottom: 6 },
     ledgerPnl: { fontSize: 22, fontWeight: '800', marginTop: 4 },
     quoteStatus: { color: colors.muted, fontSize: 12, marginTop: 6 },
@@ -354,6 +391,20 @@ const createStyles = (colors: ReturnType<typeof useAppTheme>['colors'], darkMode
       padding: 10,
       marginBottom: 10,
     },
+    insightCard: {
+      marginTop: 12,
+      borderRadius: 10,
+      padding: 12,
+      borderWidth: 1,
+    },
+    insightTitle: { color: colors.text, fontWeight: '800', marginBottom: 4 },
+    insightText: { color: colors.text, lineHeight: 20 },
+    insightSuccess: { backgroundColor: darkMode ? '#063a1f' : '#e8fff1', borderColor: colors.success },
+    insightDanger: { backgroundColor: darkMode ? '#3a1111' : '#ffe8e8', borderColor: colors.danger },
+    insightWarning: { backgroundColor: darkMode ? '#3a280a' : '#fff5d8', borderColor: colors.warning },
+    insightNeutral: { backgroundColor: colors.cardSoft, borderColor: colors.border },
+    loadingInline: { marginBottom: 10, flexDirection: 'row', alignItems: 'center', justifyContent: 'center' },
+    loadingText: { marginLeft: 8, color: colors.muted, fontSize: 12 },
     warnBannerText: { color: colors.danger, fontWeight: '600' },
     profit: { color: colors.success },
     loss: { color: colors.danger },

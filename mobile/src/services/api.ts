@@ -1,7 +1,13 @@
 import axios, { AxiosError, InternalAxiosRequestConfig } from 'axios';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
-const API_BASE_URL = process.env.EXPO_PUBLIC_API_BASE_URL ?? 'http://localhost:8000';
+const envApiBaseUrl = (
+  globalThis as { process?: { env?: { EXPO_PUBLIC_API_BASE_URL?: string } } }
+).process?.env?.EXPO_PUBLIC_API_BASE_URL;
+
+const API_BASE_URL =
+  envApiBaseUrl ??
+  (typeof window !== 'undefined' ? window.location.origin : 'http://localhost:8000');
 
 export const api = axios.create({
   // Ajuste para IP local quando testar no device físico.
@@ -134,6 +140,8 @@ export function getMarketWsUrl(asset: string) {
 export type DashboardData = {
   status: string;
   daily_pnl: number;
+  daily_change_percent?: number;
+  daily_change_value?: number;
   asset?: string;
   price_status?: string;
   position_qty?: number;
@@ -168,6 +176,7 @@ export type BacktestData = {
     max_drawdown: number;
     sharpe_ratio: number;
     insight_summary?: string;
+    insight_tone?: 'success' | 'warning' | 'danger' | 'neutral';
   };
   equity_curve: number[];
   equity_dates?: string[];
@@ -199,9 +208,14 @@ export type PaperState = {
   current_price: number;
   price_status?: string;
   floating_pnl: number;
+  floating_pnl_percent?: number;
+  invested_capital?: number;
   open_position_asset?: string;
   open_position_qty: number;
   avg_entry_price: number;
+  insight_title?: string;
+  insight_message?: string;
+  insight_tone?: 'success' | 'warning' | 'danger' | 'neutral';
   recent_orders: Array<{
     id: number;
     side: 'buy' | 'sell';
