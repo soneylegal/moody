@@ -18,6 +18,10 @@ from app.services_stream import manager, market_stream_loop
 
 app = FastAPI(title=API_TITLE, version=API_VERSION)
 
+# Initialize OpenTelemetry instrumentation (no-op when OTEL_ENABLED=false)
+from app.telemetry import init_telemetry
+init_telemetry(app)
+
 _bg_stop_event: asyncio.Event | None = None
 _bg_tasks: list[asyncio.Task] = []
 _startup_ready = False

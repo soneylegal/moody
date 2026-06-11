@@ -25,6 +25,10 @@ except Exception:
 from app import models
 from app.asset_universe import CRYPTO_TOP10
 from sqlalchemy.orm import Session
+from app.telemetry import get_tracer
+
+tracer = get_tracer("exchange_service")
+
 
 YF_SESSION = None
 if requests is not None:
@@ -570,6 +574,23 @@ class ExchangeService:
         cache_ttl_seconds: int = 300,
     ) -> list[dict[str, Any]]:
         asset = asset.upper()
+        with tracer.start_as_current_span("exchange.fetch_history") as span:
+            span.set_attribute("asset", asset)
+            span.set_attribute("timeframe", timeframe)
+            span.set_attribute("limit", limit)
+            res = self._fetch_history_impl(asset, timeframe, limit, min_points, cache_ttl_seconds)
+            span.set_attribute("data_points", len(res))
+            return res
+
+    def _fetch_history_impl(
+        self,
+        asset: str,
+        timeframe: str,
+        limit: int,
+        min_points: int,
+        cache_ttl_seconds: int,
+    ) -> list[dict[str, Any]]:
+        asset = asset.upper()
         min_points = max(2, int(min_points))
         limit = max(int(limit), min_points)
 
@@ -613,6 +634,14 @@ class ExchangeService:
 
     def fetch_spot_price(self, asset: str, cache_ttl_seconds: int = 60, db: Session | None = None) -> float | None:
         asset = asset.upper()
+        with tracer.start_as_current_span("exchange.fetch_spot_price") as span:
+            span.set_attribute("asset", asset)
+            res = self._fetch_spot_price_impl(asset, cache_ttl_seconds, db)
+            if res is not None:
+                span.set_attribute("price", res)
+            return res
+
+    def _fetch_spot_price_impl(self, asset: str, cache_ttl_seconds: int, db: Session | None) -> float | None:
         now = time.time()
         cache = self._spot_cache.get(asset)
         if cache and (now - cache[0]) <= cache_ttl_seconds and cache[1] > 0:

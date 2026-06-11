@@ -10,6 +10,10 @@ from app.config import BOT_AUTOMATION_INTERVAL_SECONDS
 from app.core_unified import create_paper_order, get_or_create_settings, get_or_create_status, get_or_create_strategy
 from app.db import SessionLocal
 from app.services_exchange import ExchangeService
+from app.telemetry import get_tracer
+
+tracer = get_tracer("bot_service")
+
 
 
 class BotAutomationState:
@@ -38,18 +42,30 @@ def _latest_signal(asset: str, ma_short: int, ma_long: int, closes: list[float],
 
 
 def _bot_automation_iteration_sync() -> None:
+    with tracer.start_as_current_span("bot.automation_iteration") as span:
+        _bot_automation_iteration_sync_impl(span)
+
+
+def _bot_automation_iteration_sync_impl(span) -> None:
     db = SessionLocal()
     try:
         bot_status = get_or_create_status(db)
+        span.set_attribute("bot_status", bot_status.status)
         if bot_status.status != "Running":
+
             return
 
         strategy = get_or_create_strategy(db)
+        span.set_attribute("asset", strategy.asset)
+        span.set_attribute("ma_short", strategy.ma_short_period)
+        span.set_attribute("ma_long", strategy.ma_long_period)
+
         settings = get_or_create_settings(db)
         service = ExchangeService(settings)
         try:
             closes, times = service.fetch_historical_closes(strategy.asset, days=2)
-        except ValueError:
+        except ValueError as exc:
+            span.record_exception(exc)
             return
 
         prev_sig, curr_sig, ts = _latest_signal(
@@ -65,6 +81,8 @@ def _bot_automation_iteration_sync() -> None:
 
         crossover_up = prev_sig == 0 and curr_sig == 1
         crossover_down = prev_sig == 1 and curr_sig == 0
+        span.set_attribute("crossover_up", crossover_up)
+        span.set_attribute("crossover_down", crossover_down)
         if not (crossover_up or crossover_down):
             state.last_processed[strategy_key] = ts
             return

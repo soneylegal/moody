@@ -9,7 +9,10 @@ Base = declarative_base()
 
 
 def apply_runtime_migrations():
+    if "sqlite" in str(engine.url):
+        return
     stmts = [
+
         "CREATE TABLE IF NOT EXISTS users (id UUID PRIMARY KEY, email VARCHAR(255) UNIQUE NOT NULL, password_hash VARCHAR(255) NOT NULL, is_active BOOLEAN NOT NULL DEFAULT TRUE, created_at TIMESTAMPTZ NOT NULL DEFAULT NOW())",
         "ALTER TABLE IF EXISTS users ADD COLUMN IF NOT EXISTS balance NUMERIC(14,2) NOT NULL DEFAULT 10000",
         "CREATE INDEX IF NOT EXISTS idx_users_email ON users(email)",
