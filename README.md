@@ -101,153 +101,41 @@ No app, a tela inicial agora é de autenticação (não carrega dashboard sem JW
 - Settings (API Key/Secret, exchange, modo paper/live, toggles, teste conexão)
 - Paper Trading (Buy/Sell, saldo, posição e ordens recentes)
 
-## Deploy no Microsoft Azure (preparado)
+## Deploy no Render (Free Tier)
 
-Este repositório já está preparado para deploy com Azure Developer CLI (AZD) usando Azure Container Apps.
+Este projeto está preparado para deploy gratuito no Render, com banco PostgreSQL, API e frontend web consolidados em um único serviço.
 
-Arquivos criados para deploy:
+### Arquitetura
 
-- `azure.yaml`
-- `infra/main.bicep`
-- `infra/main.parameters.json`
-- `.azure/plan.copilotmd`
-
-### Arquitetura alvo
-
-- Backend FastAPI em Azure Container Apps
-- Banco em Azure Database for PostgreSQL Flexible Server
-- Azure Container Registry para imagem Docker
-- User Assigned Managed Identity para acesso seguro
-- Azure Key Vault para secrets (`DATABASE_URL`, `JWT_SECRET_KEY`)
-- Application Insights + Log Analytics para observabilidade
-
-### Pré-requisitos
-
-1. Azure CLI e AZD instalados
-2. Login no Azure:
-   - `az login`
-   - `azd auth login`
+- **Web Service (Docker):** FastAPI + Frontend React Native Web no mesmo container
+- **PostgreSQL:** Banco gerenciado gratuito do Render (expira em 90 dias)
 
 ### Passo a passo
 
-1. Na raiz do projeto:
-   - `azd env new dev`
-   - `azd env set AZURE_LOCATION francecentral`
-2. Defina os segredos do ambiente:
-   - `azd env set POSTGRES_ADMIN_PASSWORD <senha-forte>`
-   - `azd env set JWT_SECRET_KEY <chave-jwt-forte>`
-3. Faça um preview da infraestrutura:
-   - `azd provision --preview`
-4. Provisione e faça o deploy:
-   - `azd up`
+1. Crie um banco **PostgreSQL** gratuito no Render e copie a **Internal Database URL**.
+2. Crie um **Web Service** conectado ao repositório GitHub:
+   - **Branch:** `main`
+   - **Root Directory:** `backend`
+   - **Runtime:** Docker
+   - **Plano:** Free
+3. Configure as variáveis de ambiente no Web Service:
+   - `DATABASE_URL` = Internal Database URL (o backend converte automaticamente o prefixo)
+   - `JWT_SECRET_KEY` = chave forte (gere com `python -c "import secrets; print(secrets.token_urlsafe(64))"`)
+   - `FIELD_ENCRYPTION_KEY` = chave Fernet (gere com `python -c "from cryptography.fernet import Fernet; print(Fernet.generate_key().decode())"`)
+   - `MARKET_STREAM_INTERVAL_SECONDS` = `5.0`
 
-### Pós-deploy
+### Publicar interface web junto com a API
 
-- Pegue a URL pública do backend gerada pelo `azd up`.
-- No mobile Expo, configure:
-  - `EXPO_PUBLIC_API_BASE_URL=<url-do-backend-no-azure>`
+O FastAPI serve automaticamente os arquivos estáticos de `backend/app_web/` na rota `/` quando `index.html` existe:
 
-## Deploy via GitHub Actions
-
-Workflows já adicionados:
-
-- `.github/workflows/azure-preview.yml` (preview em pull request)
-- `.github/workflows/azure-deploy.yml` (deploy em push para main ou manual)
-
-### 1) Configurar autenticação OIDC (GitHub -> Azure)
-
-1. Crie um App Registration no Microsoft Entra ID.
-2. Crie um Service Principal para esse app.
-3. Adicione credenciais federadas para o repositório:
-   - Branch `main` (deploy)
-   - Pull Request (preview)
-
-### 2) Permissões do Service Principal
-
-No escopo da assinatura ou do resource group alvo, atribua:
-
-- `Contributor`
-- `User Access Administrator`
-
-Observação: `User Access Administrator` é necessário porque o Bicep cria role assignments (AcrPull e Key Vault Secrets User).
-
-### 3) Secrets no GitHub Repository
-
-Em Settings > Secrets and variables > Actions, criar:
-
-- `AZURE_CLIENT_ID`
-- `AZURE_TENANT_ID`
-- `AZURE_SUBSCRIPTION_ID`
-- `POSTGRES_ADMIN_PASSWORD`
-- `JWT_SECRET_KEY`
-
-### 4) Ajustar região (opcional)
-
-Os workflows usam `francecentral` por padrão (compatível com a sua assinatura).
-
-### 5) Fluxo de execução
-
-1. Abra PR para `main`: o workflow de preview executa `azd provision --preview`.
-2. Merge em `main`: o workflow de deploy executa:
-   - preparação de ambiente azd
-   - `azd provision --preview`
-   - `azd up`
-   - health check em `/health`
-
-### 6) Mobile após deploy
-
-Atualize no app mobile:
-
-- `EXPO_PUBLIC_API_BASE_URL=https://<fqdn-do-container-app>`
-
-## Publicar interface web na mesma URL do backend (mais rápido)
-
-Para colocar a interface no ar sem criar novo recurso (por exemplo, quando Static Web Apps estiver bloqueado por policy), este repositório já permite servir a UI web pelo mesmo Container App da API.
-
-Como funciona:
-
-1. O workflow de deploy (`.github/workflows/azure-deploy.yml`) executa build web do Expo.
-2. Os arquivos gerados são copiados para `backend/app_web` antes do build da imagem Docker.
-3. O FastAPI monta os arquivos estáticos no `/` quando `backend/app_web/index.html` existe.
+1. No diretório `mobile/`, rode:
+   - `npm ci && npm run build:web`
+2. Copie os arquivos:
+   - `rm -rf backend/app_web/* && cp -R mobile/dist/. backend/app_web/`
+3. Commit e push — o Render fará o deploy automaticamente.
 
 Resultado:
 
-- Interface web: `https://<fqdn-do-container-app>/`
-- Swagger: `https://<fqdn-do-container-app>/docs`
-- Health: `https://<fqdn-do-container-app>/health`
-
-Secret recomendado no GitHub para esse fluxo:
-
-- `EXPO_PUBLIC_API_BASE_URL` (opcional): se não definido, a UI web usa o mesmo domínio automaticamente.
-
-## Deploy da Interface Web (Azure Static Web Apps)
-
-Workflow adicionado:
-
-- `.github/workflows/azure-static-web-app.yml`
-
-Este workflow publica a interface web (Expo export) em uma URL pública do Azure Static Web Apps.
-
-### 1) Criar o recurso no Azure
-
-1. No Azure Portal, crie um recurso **Static Web App**.
-2. Se preferir o caminho mais rápido, complete o assistente e finalize a criação.
-3. No recurso criado, copie o **Deployment Token**.
-
-### 2) Configurar secrets no GitHub
-
-Em Settings > Secrets and variables > Actions, crie:
-
-- `AZURE_STATIC_WEB_APPS_API_TOKEN` = deployment token do Static Web App
-- `EXPO_PUBLIC_API_BASE_URL` = URL pública da API backend (Container App)
-
-### 3) Fluxo de deploy
-
-1. Push na branch `main` com alterações em `mobile/**` dispara o workflow.
-2. O workflow executa build web do Expo (`npm run build:web`).
-3. O conteúdo gerado é publicado no Azure Static Web Apps.
-
-### 4) Acessar a interface
-
-- Abra a URL do Static Web App (ex.: `https://<nome>.azurestaticapps.net`).
-- A aplicação web consumirá a API via `EXPO_PUBLIC_API_BASE_URL`.
+- Interface web: `https://<seu-app>.onrender.com/`
+- Swagger: `https://<seu-app>.onrender.com/docs`
+- Health: `https://<seu-app>.onrender.com/health`
