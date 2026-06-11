@@ -64,3 +64,11 @@ BOT_AUTOMATION_INTERVAL_SECONDS = float(os.getenv("BOT_AUTOMATION_INTERVAL_SECON
 OTEL_ENABLED = os.getenv("OTEL_ENABLED", "false").lower() == "true"
 OTEL_EXPORTER_ENDPOINT = os.getenv("OTEL_EXPORTER_OTLP_ENDPOINT", "")
 OTEL_SERVICE_NAME = os.getenv("OTEL_SERVICE_NAME", "moody-backend")
+
+# ---------------------------------------------------------------------------
+# Fault Injection / Chaos testing
+# ---------------------------------------------------------------------------
+FAULT_INJECTION_ENABLED = os.getenv("FAULT_INJECTION_ENABLED", "false").lower() == "true"
+FAULT_INJECTION_MODE = os.getenv("FAULT_INJECTION_MODE", "random")
+FAULT_INJECTION_ERROR_RATE = float(os.getenv("FAULT_INJECTION_ERROR_RATE", "0.3"))
+
