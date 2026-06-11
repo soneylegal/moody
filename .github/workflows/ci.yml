@@ -34,10 +34,13 @@ jobs:
         with:
           python-version: "3.12"
           cache: pip
-          cache-dependency-path: backend/requirements.txt
+          cache-dependency-path: backend/pyproject.toml
 
       - name: Install dependencies
-        run: pip install -r backend/requirements.txt
+          # We also increase pip default timeout/retries to help with any PyPI network issues
+        run: |
+          pip install --upgrade pip
+          pip install --default-timeout=100 --retries 10 -e "backend/[dev]"
 
       - name: Run tests
         working-directory: backend

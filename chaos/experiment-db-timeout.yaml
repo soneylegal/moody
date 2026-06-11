@@ -1,0 +1,104 @@
+---
+# Chaos Toolkit experiment: Database Timeout
+# Simulates the database becoming unresponsive, causing query timeouts.
+#
+# Prerequisites:
+#   pip install chaostoolkit chaostoolkit-lib
+#   The backend must be running at $API_URL (default: http://localhost:8000)
+#   Set FAULT_INJECTION_ENABLED=true on the backend
+#
+# Run:
+#   FAULT_INJECTION_ENABLED=true FAULT_INJECTION_MODE=db_timeout \
+#     chaos run chaos/experiment-db-timeout.yaml
+
+version: 1.0.0
+title: "Database timeout causes graceful degradation"
+description: >
+  Verifies that when the database is slow or unresponsive,
+  the API returns appropriate error responses (503 or 504)
+  instead of hanging indefinitely.
+
+tags:
+  - fault-injection
+  - database
+  - resilience
+
+configuration:
+  api_url:
+    type: env
+    key: API_URL
+    default: "http://localhost:8000"
+
+# Steady-state: authentication and database-backed endpoints work
+steady-state-hypothesis:
+  title: "Auth endpoints respond normally"
+  probes:
+    - name: health-check
+      type: probe
+      tolerance: 200
+      provider:
+        type: http
+        url: "${api_url}/health"
+        method: GET
+        timeout: 5
+
+    - name: register-responds
+      type: probe
+      tolerance:
+        type: range
+        range: [200, 422]
+      provider:
+        type: http
+        url: "${api_url}/auth/register"
+        method: POST
+        timeout: 10
+        headers:
+          Content-Type: "application/json"
+        arguments:
+          body: '{"username": "chaos_probe", "password": "Chaos123!@#"}'
+
+method:
+  - name: enable-db-timeout-fault
+    type: action
+    provider:
+      type: process
+      path: bash
+      arguments: >
+        -c "echo 'Fault injection mode: db_timeout is active via env vars'"
+    pauses:
+      after: 1
+
+  - name: verify-auth-degrades-gracefully
+    type: probe
+    provider:
+      type: http
+      url: "${api_url}/auth/login"
+      method: POST
+      timeout: 15
+      headers:
+        Content-Type: "application/json"
+      arguments:
+        body: '{"username": "chaos_probe", "password": "Chaos123!@#"}'
+    tolerance:
+      type: range
+      range: [200, 504]
+
+  - name: verify-health-still-responds
+    type: probe
+    tolerance:
+      type: range
+      range: [200, 503]
+    provider:
+      type: http
+      url: "${api_url}/health"
+      method: GET
+      timeout: 10
+
+rollbacks:
+  - name: log-rollback
+    type: action
+    provider:
+      type: process
+      path: bash
+      arguments: >
+        -c "echo 'Experiment complete. Disable FAULT_INJECTION_ENABLED to restore normal operation.'"

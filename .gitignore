@@ -24,3 +24,7 @@ yarn-error.log*
 *.db
 *.sqlite
 
+# Python Build / Cache
+*.egg-info/
+.pytest_cache/
+.rebase-editor.sh
