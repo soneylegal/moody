@@ -99,11 +99,20 @@ class BacktestResponse(BaseModel):
     price_chart: list[CandlePoint] = []
     ma_short_series: list[IndicatorPoint] = []
     ma_long_series: list[IndicatorPoint] = []
+    monte_carlo: MonteCarloResponse | None = None
 
 
 class BacktestRunIn(BaseModel):
     period_label: str = "6 Months"
     asset: str | None = None
+
+
+class MonteCarloRunIn(BaseModel):
+    n_simulations: int = Field(1000, ge=10, le=10000)
+    n_days: int = Field(252, ge=10, le=1000)
+    asset: str | None = None
+    period_label: str = "6 Months"
+
 
 
 class AssetUniverseOut(BaseModel):
@@ -179,3 +188,19 @@ class PaperStateResponse(BaseModel):
     insight_message: str | None = None
     insight_tone: str = "neutral"
     recent_orders: list[PaperOrderOut]
+
+
+class MonteCarloMetrics(BaseModel):
+    var_95: float          # Value at Risk 95%
+    cvar_95: float         # Conditional VaR (Expected Shortfall)
+    probability_of_ruin: float  # Probabilidade de falência/ruína
+    median_final_equity: float
+    best_case_equity: float   # P95
+    worst_case_equity: float  # P5
+
+
+class MonteCarloResponse(BaseModel):
+    metrics: MonteCarloMetrics
+    fan_chart: dict[str, list[float]]  # {"p5": [...], "p25": [...], ...}
+    simulations_run: int
+
