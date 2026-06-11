@@ -82,13 +82,37 @@ def init_telemetry(app: FastAPI) -> None:
         logger.error("OpenTelemetry initialization failed: %s", exc)
 
 
+class DummySpan:
+    def __enter__(self) -> DummySpan:
+        return self
+
+    def __exit__(self, exc_type, exc_val, exc_tb) -> None:
+        pass
+
+    def set_attribute(self, key: str, value: any) -> DummySpan:
+        return self
+
+    def set_status(self, status, message=None) -> DummySpan:
+        return self
+
+    def record_exception(self, exception) -> None:
+        pass
+
+
+class DummyTracer:
+    def start_as_current_span(self, name: str, *args, **kwargs) -> DummySpan:
+        return DummySpan()
+
+
 def get_tracer(name: str = __name__):
-    """Return a tracer instance for manual span creation."""
+    """Return a tracer instance for manual span creation.
+
+    Falls back to a DummyTracer if OTEL_ENABLED is False or if dependencies are missing.
+    """
     if not OTEL_ENABLED:
+        return DummyTracer()
+    try:
         from opentelemetry import trace
-
         return trace.get_tracer(name)
-
-    from opentelemetry import trace
-
-    return trace.get_tracer(name)
+    except ImportError:
+        return DummyTracer()
