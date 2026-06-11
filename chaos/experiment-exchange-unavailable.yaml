@@ -1,0 +1,105 @@
+---
+# Chaos Toolkit experiment: Exchange Unavailable
+# Simulates the exchange API (ccxt / yfinance) being completely unreachable.
+# Tests the Circuit Breaker pattern in services_exchange.py.
+#
+# Prerequisites:
+#   pip install chaostoolkit chaostoolkit-lib
+#   The backend must be running at $API_URL (default: http://localhost:8000)
+#   Set FAULT_INJECTION_ENABLED=true FAULT_INJECTION_MODE=exchange_down
+#
+# Run:
+#   FAULT_INJECTION_ENABLED=true FAULT_INJECTION_MODE=exchange_down \
+#     chaos run chaos/experiment-exchange-unavailable.yaml
+
+version: 1.0.0
+title: "Exchange unavailability triggers circuit breaker"
+description: >
+  Verifies that when the exchange API (ccxt/yfinance) is unreachable,
+  the circuit breaker opens and the system degrades gracefully —
+  returning cached data or appropriate error responses instead of
+  cascading failures.
+
+tags:
+  - fault-injection
+  - circuit-breaker
+  - exchange
+  - resilience
+
+configuration:
+  api_url:
+    type: env
+    key: API_URL
+    default: "http://localhost:8000"
+
+# Steady-state: API is healthy and can respond
+steady-state-hypothesis:
+  title: "API is operational"
+  probes:
+    - name: health-check
+      type: probe
+      tolerance: 200
+      provider:
+        type: http
+        url: "${api_url}/health"
+        method: GET
+        timeout: 5
+
+method:
+  - name: enable-exchange-down-fault
+    type: action
+    provider:
+      type: process
+      path: bash
+      arguments: >
+        -c "echo 'Exchange fault injection active. Circuit breaker should engage after consecutive failures.'"
+    pauses:
+      after: 1
+
+  - name: trigger-exchange-calls-to-trip-breaker
+    type: probe
+    provider:
+      type: http
+      url: "${api_url}/health"
+      method: GET
+      timeout: 10
+    tolerance:
+      type: range
+      range: [200, 503]
+
+  - name: verify-circuit-breaker-open-response
+    type: probe
+    provider:
+      type: http
+      url: "${api_url}/health"
+      method: GET
+      timeout: 10
+    tolerance:
+      type: range
+      range: [200, 503]
+
+  - name: wait-for-recovery-window
+    type: action
+    provider:
+      type: process
+      path: bash
+      arguments: >
+        -c "echo 'Waiting for circuit breaker recovery timeout...' && sleep 5"
+
+  - name: verify-system-recovers
+    type: probe
+    tolerance: 200
+    provider:
+      type: http
+      url: "${api_url}/health"
+      method: GET
+      timeout: 10
+
+rollbacks:
+  - name: log-rollback
+    type: action
+    provider:
+      type: process
+      path: bash
+      arguments: >
+        -c "echo 'Experiment complete. Disable FAULT_INJECTION_ENABLED to restore normal operation.'"

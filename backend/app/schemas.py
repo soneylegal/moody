@@ -91,6 +91,21 @@ class BacktestMetrics(BaseModel):
     insight_tone: str = "neutral"
 
 
+class MonteCarloMetrics(BaseModel):
+    var_95: float          # Value at Risk 95%
+    cvar_95: float         # Conditional VaR (Expected Shortfall)
+    probability_of_ruin: float  # Probabilidade de falência/ruína
+    median_final_equity: float
+    best_case_equity: float   # P95
+    worst_case_equity: float  # P5
+
+
+class MonteCarloResponse(BaseModel):
+    metrics: MonteCarloMetrics
+    fan_chart: dict[str, list[float]]  # {"p5": [...], "p25": [...], ...}
+    simulations_run: int
+
+
 class BacktestResponse(BaseModel):
     period_label: str
     metrics: BacktestMetrics
@@ -188,19 +203,4 @@ class PaperStateResponse(BaseModel):
     insight_message: str | None = None
     insight_tone: str = "neutral"
     recent_orders: list[PaperOrderOut]
-
-
-class MonteCarloMetrics(BaseModel):
-    var_95: float          # Value at Risk 95%
-    cvar_95: float         # Conditional VaR (Expected Shortfall)
-    probability_of_ruin: float  # Probabilidade de falência/ruína
-    median_final_equity: float
-    best_case_equity: float   # P95
-    worst_case_equity: float  # P5
-
-
-class MonteCarloResponse(BaseModel):
-    metrics: MonteCarloMetrics
-    fan_chart: dict[str, list[float]]  # {"p5": [...], "p25": [...], ...}
-    simulations_run: int
 

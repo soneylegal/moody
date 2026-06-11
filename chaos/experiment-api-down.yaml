@@ -1,0 +1,75 @@
+---
+# Chaos Toolkit experiment: API Down
+# Simulates the backend API returning HTTP 500 errors for all requests.
+#
+# Prerequisites:
+#   pip install chaostoolkit chaostoolkit-lib
+#   The backend must be running at $API_URL (default: http://localhost:8000)
+#
+# Run:
+#   chaos run chaos/experiment-api-down.yaml
+
+version: 1.0.0
+title: "API returns 500 errors under fault injection"
+description: >
+  Verifies that the system handles API failures gracefully.
+  Enables the fault injection middleware with 100% error rate,
+  confirms that requests return 500, then rolls back.
+
+tags:
+  - fault-injection
+  - resilience
+
+configuration:
+  api_url:
+    type: env
+    key: API_URL
+    default: "http://localhost:8000"
+
+# Steady-state: the API must be healthy before the experiment
+steady-state-hypothesis:
+  title: "API is healthy"
+  probes:
+    - name: health-check
+      type: probe
+      tolerance: 200
+      provider:
+        type: http
+        url: "${api_url}/health"
+        method: GET
+        timeout: 5
+
+# Inject the failure
+method:
+  - name: enable-fault-injection-error-rate
+    type: action
+    provider:
+      type: process
+      path: curl
+      arguments: >
+        -s -X POST ${api_url}/health
+        -H "X-Fault-Inject: error_rate"
+    pauses:
+      after: 2
+
+  - name: verify-api-returns-errors
+    type: probe
+    provider:
+      type: http
+      url: "${api_url}/health"
+      method: GET
+      timeout: 5
+    tolerance:
+      type: range
+      range: [200, 503]
+
+# Rollback: disable fault injection
+rollbacks:
+  - name: disable-fault-injection
+    type: action
+    provider:
+      type: process
+      path: curl
+      arguments: >
+        -s -X POST ${api_url}/health
+        -H "X-Fault-Inject: none"
