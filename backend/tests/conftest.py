@@ -19,17 +19,17 @@ from app.main import app  # noqa: E402
 
 
 
-# Use an in-memory SQLite database for fast, isolated tests.
-# We need `check_same_thread=False` because FastAPI uses threads.
-SQLALCHEMY_TEST_URL = "sqlite:///./test.db"
+from sqlalchemy.pool import StaticPool
+
+# Use an in-memory SQLite database with StaticPool to keep the connection alive
+# and preserve the schema/data across requests.
+SQLALCHEMY_TEST_URL = "sqlite://"
 
 engine = create_engine(
     SQLALCHEMY_TEST_URL,
     connect_args={"check_same_thread": False},
+    poolclass=StaticPool,
 )
-
-# SQLite does not support schemas or PostgreSQL-specific types natively.
-# Patch the UUID column to work with SQLite by storing as TEXT.
 
 TestingSessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
 
