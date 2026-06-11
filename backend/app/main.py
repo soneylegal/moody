@@ -35,6 +35,12 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+from app.config import FAULT_INJECTION_ENABLED
+if FAULT_INJECTION_ENABLED:
+    from app.middleware_fault import FaultInjectionMiddleware
+    app.add_middleware(FaultInjectionMiddleware)
+
+
 
 @app.on_event("startup")
 async def on_startup():

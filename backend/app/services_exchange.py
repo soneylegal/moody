@@ -29,6 +29,12 @@ from app.telemetry import get_tracer
 
 tracer = get_tracer("exchange_service")
 
+from app.circuit_breaker import CircuitBreaker
+
+ccxt_breaker = CircuitBreaker("ccxt_api", failure_threshold=3, recovery_timeout_seconds=5.0)
+yfinance_breaker = CircuitBreaker("yfinance_api", failure_threshold=3, recovery_timeout_seconds=5.0)
+
+
 
 YF_SESSION = None
 if requests is not None:
@@ -266,12 +272,15 @@ class ExchangeService:
             "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36",
             "Accept": "application/json",
         }
+        def _get():
+            response = requests.get(url, headers=headers, timeout=timeout)
+            response.raise_for_status()
+            return response.json()
+
         last_error = None
         for attempt in range(retries):
             try:
-                response = requests.get(url, headers=headers, timeout=timeout)
-                response.raise_for_status()
-                return response.json()
+                return yfinance_breaker.call(_get)
             except Exception as exc:
                 last_error = exc
                 if attempt < retries - 1:
@@ -282,17 +291,20 @@ class ExchangeService:
     def _download_yf_close(self, ticker: str, period: str, interval: str):
         if yf is None:
             return None
+        def _download():
+            return yf.download(
+                ticker,
+                period=period,
+                interval=interval,
+                progress=False,
+                auto_adjust=False,
+                session=YF_SESSION,
+            )
+
         last_error = None
         for attempt in range(3):
             try:
-                return yf.download(
-                    ticker,
-                    period=period,
-                    interval=interval,
-                    progress=False,
-                    auto_adjust=False,
-                    session=YF_SESSION,
-                )
+                return yfinance_breaker.call(_download)
             except Exception as exc:
                 last_error = exc
                 if attempt < 2:
@@ -368,7 +380,7 @@ class ExchangeService:
             return None
         try:
             client = self._build_client()
-            ticker = client.fetch_ticker(symbol)
+            ticker = ccxt_breaker.call(client.fetch_ticker, symbol)
             return float(ticker.get("last") or ticker.get("close") or 0)
         except Exception:
             return None
@@ -377,8 +389,8 @@ class ExchangeService:
         client = self._build_client()
         order_side = "buy" if side.lower() == "buy" else "sell"
         if price and price > 0:
-            return client.create_limit_order(symbol, order_side, amount, price)
-        return client.create_market_order(symbol, order_side, amount)
+            return ccxt_breaker.call(client.create_limit_order, symbol, order_side, amount, price)
+        return ccxt_breaker.call(client.create_market_order, symbol, order_side, amount)
 
     def fetch_historical_closes(self, asset: str, days: int) -> tuple[list[float], list[datetime]]:
         asset = asset.upper()
@@ -433,7 +445,7 @@ class ExchangeService:
                 fetch_limit = max(limit, min_points * 3)
                 fetch_limit = max(fetch_limit, 60)
                 fetch_limit = min(fetch_limit, 1000)
-                candles = client.fetch_ohlcv(symbol, timeframe=tf, limit=fetch_limit)
+                candles = ccxt_breaker.call(client.fetch_ohlcv, symbol, timeframe=tf, limit=fetch_limit)
                 points: list[dict[str, Any]] = []
                 for c in candles:
                     if not c or len(c) < 5:
@@ -650,7 +662,7 @@ class ExchangeService:
         if self._is_crypto_asset(asset):
             try:
                 client = self._build_public_client()
-                ticker = client.fetch_ticker(f"{asset}/USDT")
+                ticker = ccxt_breaker.call(client.fetch_ticker, f"{asset}/USDT")
                 price = float(ticker.get("last") or ticker.get("close") or 0)
                 if math.isfinite(price) and price > 0:
                     self._spot_cache[asset] = (now, price)
