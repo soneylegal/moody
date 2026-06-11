@@ -78,13 +78,6 @@ CREATE TABLE IF NOT EXISTS app_settings (
   updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
 
-CREATE TABLE IF NOT EXISTS paper_account (
-  id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
-  balance NUMERIC(14,2) NOT NULL DEFAULT 10000,
-  open_position_asset VARCHAR(20),
-  open_position_qty NUMERIC(14,4) NOT NULL DEFAULT 0,
-  updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
-);
 
 CREATE TABLE IF NOT EXISTS paper_orders (
   id BIGSERIAL PRIMARY KEY,
@@ -110,6 +103,3 @@ INSERT INTO app_settings (api_key_masked, api_secret_masked, exchange_name, trad
 SELECT '********************', '********************', 'binance', 'paper', TRUE, TRUE
 WHERE NOT EXISTS (SELECT 1 FROM app_settings);
 
-INSERT INTO paper_account (balance, open_position_asset, open_position_qty)
-SELECT 10000, 'PETR4', 100
-WHERE NOT EXISTS (SELECT 1 FROM paper_account);

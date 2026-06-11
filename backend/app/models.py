@@ -163,15 +163,6 @@ class AppSettings(Base):
     updated_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
 
 
-class PaperAccount(Base):
-    __tablename__ = "paper_account"
-
-    id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
-    balance: Mapped[Decimal] = mapped_column(Numeric(14, 2), default=Decimal("10000"))
-    open_position_asset: Mapped[str | None] = mapped_column(String(20), nullable=True)
-    open_position_qty: Mapped[Decimal] = mapped_column(Numeric(14, 4), default=Decimal("0"))
-    updated_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
-
 
 class PaperOrder(Base):
     __tablename__ = "paper_orders"
