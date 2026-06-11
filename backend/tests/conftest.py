@@ -14,12 +14,14 @@ os.environ.setdefault("FIELD_ENCRYPTION_KEY", "dGVzdC1lbmNyeXB0aW9uLWtleS1mb3ItY
 os.environ.setdefault("DATABASE_URL", "sqlite:///")  # overridden below
 
 from app.db import Base, get_db  # noqa: E402
+from app import models  # noqa: E402
 from app.main import app  # noqa: E402
+
 
 
 # Use an in-memory SQLite database for fast, isolated tests.
 # We need `check_same_thread=False` because FastAPI uses threads.
-SQLALCHEMY_TEST_URL = "sqlite://"
+SQLALCHEMY_TEST_URL = "sqlite:///./test.db"
 
 engine = create_engine(
     SQLALCHEMY_TEST_URL,
