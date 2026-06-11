@@ -40,7 +40,11 @@ YF_SESSION = None
 if requests is not None:
     try:
         YF_SESSION = requests.Session()
-        YF_SESSION.headers.update({"User-Agent": "Mozilla/5.0 Windows NT 10.0"})
+        YF_SESSION.headers.update({
+            "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36",
+            "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,image/apng,*/*;q=0.8",
+            "Accept-Language": "en-US,en;q=0.9",
+        })
     except Exception:
         YF_SESSION = None
 
@@ -268,12 +272,15 @@ class ExchangeService:
     def _http_get_json(self, url: str, timeout: int = 10, retries: int = 3) -> dict[str, Any] | None:
         if requests is None:
             return None
-        headers = {
-            "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36",
+        
+        session_headers = YF_SESSION.headers if YF_SESSION else {
+            "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36",
             "Accept": "application/json",
+            "Accept-Language": "en-US,en;q=0.9",
         }
+
         def _get():
-            response = requests.get(url, headers=headers, timeout=timeout)
+            response = requests.get(url, headers=session_headers, timeout=timeout)
             response.raise_for_status()
             return response.json()
 
