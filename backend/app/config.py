@@ -5,10 +5,16 @@ from dotenv import load_dotenv
 
 load_dotenv()
 
-DATABASE_URL = os.getenv(
+_db_url = os.getenv(
     "DATABASE_URL",
     "postgresql+psycopg://postgres:postgres@localhost:5432/swingbot",
 )
+if _db_url.startswith("postgres://"):
+    _db_url = _db_url.replace("postgres://", "postgresql+psycopg://", 1)
+elif _db_url.startswith("postgresql://") and not _db_url.startswith("postgresql+psycopg://"):
+    _db_url = _db_url.replace("postgresql://", "postgresql+psycopg://", 1)
+
+DATABASE_URL = _db_url
 API_TITLE = os.getenv("API_TITLE", "Swing Trade Bot API")
 API_VERSION = os.getenv("API_VERSION", "0.1.0")
 
