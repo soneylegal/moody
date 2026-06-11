@@ -575,6 +575,9 @@ def run_backtest(db: Session, period_label: str = "6 Months", user_id: uuid.UUID
         db.commit()
         db.refresh(row)
 
+        from app.services_montecarlo import run_monte_carlo_simulation
+        mc_res = run_monte_carlo_simulation(result["equity_curve"])
+
         sampled_curve, sampled_dates = _sample_aligned([float(v) for v in result["equity_curve"]], [str(v) for v in result.get("equity_timestamps", [])], 120)
         chart = candles[-240:]
         tone = "success" if _safe_float(row.total_return) > 0 else "danger" if _safe_float(row.total_return) < 0 else "neutral"
@@ -593,6 +596,18 @@ def run_backtest(db: Session, period_label: str = "6 Months", user_id: uuid.UUID
             price_chart=chart,
             ma_short_series=_build_ma_series(chart, strategy.ma_short_period),
             ma_long_series=_build_ma_series(chart, strategy.ma_long_period),
+            monte_carlo=schemas.MonteCarloResponse(
+                metrics=schemas.MonteCarloMetrics(
+                    var_95=mc_res["metrics"]["var_95"],
+                    cvar_95=mc_res["metrics"]["cvar_95"],
+                    probability_of_ruin=mc_res["metrics"]["probability_of_ruin"],
+                    median_final_equity=_round2(mc_res["metrics"]["median_final_equity"]),
+                    best_case_equity=_round2(mc_res["metrics"]["best_case_equity"]),
+                    worst_case_equity=_round2(mc_res["metrics"]["worst_case_equity"]),
+                ),
+                fan_chart=mc_res["fan_chart"],
+                simulations_run=mc_res["simulations_run"],
+            )
         )
     except ValueError:
         return schemas.BacktestResponse(
@@ -610,6 +625,7 @@ def run_backtest(db: Session, period_label: str = "6 Months", user_id: uuid.UUID
             price_chart=[],
             ma_short_series=[],
             ma_long_series=[],
+            monte_carlo=None,
         )
     except Exception:
         return schemas.BacktestResponse(
@@ -627,6 +643,7 @@ def run_backtest(db: Session, period_label: str = "6 Months", user_id: uuid.UUID
             price_chart=[],
             ma_short_series=[],
             ma_long_series=[],
+            monte_carlo=None,
         )
 
 
