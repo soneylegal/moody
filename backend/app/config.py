@@ -57,6 +57,8 @@ CORS_ORIGINS: list[str] = [o.strip() for o in _raw_origins.split(",") if o.strip
 # ---------------------------------------------------------------------------
 MARKET_STREAM_INTERVAL_SECONDS = float(os.getenv("MARKET_STREAM_INTERVAL_SECONDS", "2.0"))
 BOT_AUTOMATION_INTERVAL_SECONDS = float(os.getenv("BOT_AUTOMATION_INTERVAL_SECONDS", "60.0"))
+REDIS_URL = os.getenv("REDIS_URL", "redis://localhost:6379/0")
+
 
 # ---------------------------------------------------------------------------
 # OpenTelemetry
