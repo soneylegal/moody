@@ -20,6 +20,8 @@ dependencies = [
     "ccxt==4.4.95",
     "cryptography>=44.0.0",
     "yfinance==0.2.54",
+    "redis>=5.0.1",
+    "celery>=5.4.0",
     # OpenTelemetry
     "opentelemetry-api>=1.25",
     "opentelemetry-sdk>=1.25",

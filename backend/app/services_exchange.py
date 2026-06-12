@@ -661,10 +661,24 @@ class ExchangeService:
             return res
 
     def _fetch_spot_price_impl(self, asset: str, cache_ttl_seconds: int, db: Session | None) -> float | None:
+        # Tenta ler do Redis primeiro (cache de alta performance)
+        from app.config import REDIS_URL
+        import redis
+        try:
+            r = redis.from_url(REDIS_URL)
+            price_bytes = r.get(f"spot:price:{asset.upper()}")
+            if price_bytes:
+                price = float(price_bytes)
+                if price > 0:
+                    return price
+        except Exception as exc:
+            logger.warning("Erro ao ler spot price do Redis para %s: %s", asset, exc)
+
         now = time.time()
         cache = self._spot_cache.get(asset)
         if cache and (now - cache[0]) <= cache_ttl_seconds and cache[1] > 0:
             return cache[1]
+
 
         if self._is_crypto_asset(asset):
             try:

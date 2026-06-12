@@ -17,6 +17,13 @@ services:
       - postgres_data:/var/lib/postgresql/data
       - ./db/schema.sql:/docker-entrypoint-initdb.d/schema.sql:ro
 
+  redis:
+    image: redis:7-alpine
+    container_name: swingbot-redis
+    ports:
+      - '6379:6379'
+    restart: unless-stopped
+
   backend:
     build:
       context: ./backend
@@ -25,8 +32,11 @@ services:
     depends_on:
       postgres:
         condition: service_healthy
+      redis:
+        condition: service_started
     environment:
       DATABASE_URL: postgresql+psycopg://postgres:postgres@postgres:5432/swingbot
+      REDIS_URL: redis://redis:6379/0
       API_TITLE: Swing Trade Bot API
       API_VERSION: 0.1.0
       # DEV-ONLY keys — regenerate for production!
@@ -35,10 +45,41 @@ services:
       JWT_EXPIRE_MINUTES: 120
       JWT_REFRESH_EXPIRE_MINUTES: 10080
       FIELD_ENCRYPTION_KEY: ${FIELD_ENCRYPTION_KEY}
-      CORS_ORIGINS: "http://localhost:8081,http://localhost:19006,http://localhost:8000"
+      CORS_ORIGINS: "http://localhost:8081,http://localhost:19006,http://localhost:8000,http://localhost:3000"
       MARKET_STREAM_INTERVAL_SECONDS: 2.0
     ports:
       - '8000:8000'
+    restart: unless-stopped
+
+  celery_worker:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: swingbot-celery-worker
+    command: celery -A app.tasks worker --loglevel=info
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_started
+    environment:
+      DATABASE_URL: postgresql+psycopg://postgres:postgres@postgres:5432/swingbot
+      REDIS_URL: redis://redis:6379/0
+      JWT_SECRET_KEY: ${JWT_SECRET_KEY}
+      FIELD_ENCRYPTION_KEY: ${FIELD_ENCRYPTION_KEY}
+    restart: unless-stopped
+
+  celery_beat:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: swingbot-celery-beat
+    command: celery -A app.tasks beat --loglevel=info
+    depends_on:
+      redis:
+        condition: service_started
+    environment:
+      REDIS_URL: redis://redis:6379/0
     restart: unless-stopped
 
 volumes:
