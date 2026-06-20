@@ -28,7 +28,7 @@ Moody é uma plataforma full-stack de automação de swing trade projetada para 
 
 - 🕯️ **Gráficos de velas em tempo real** via WebSocket + Lightweight Charts v5
 - 📊 **Backtesting engine** com cruzamento de médias móveis e métricas de performance
-- 🎲 **Simulação de Monte Carlo** com fan chart percentílico (P5, P25, P50, P75, P95)
+- 🎲 **Simulação de Monte Carlo** — 4 métodos: Bootstrap, GBM, Block Bootstrap, Importance Sampling — com fan chart percentílico (P5, P25, P50, P75, P95)
 - 💹 **Paper Trading** com saldo simulado, PnL flutuante e histórico de ordens
 - 🔐 **Segurança enterprise** — JWT, Fernet encryption at rest, CORS restrito
 - ⚡ **Processamento assíncrono** — Celery workers desacoplados do request/response
@@ -138,6 +138,21 @@ sequenceDiagram
 
 ---
 
+## Motor de Simulação Estocástica
+
+O módulo [`services_montecarlo.py`](backend/app/services_montecarlo.py) oferece **4 métodos** de projeção de risco:
+
+| Método | Geração de Caminhos | Ruína | Ideal para |
+|--------|---------------------|-------|------------|
+| **Bootstrap** (padrão) | Sorteio i.i.d. com reposição dos retornos históricos | Média aritmética | Uso geral, distribuição empírica |
+| **GBM** | Movimento Browniano Geométrico: \( P_t = P_{t-1}\exp((\mu - \sigma^2/2)\Delta t + \sigma\sqrt{\Delta t}Z) \) | Média aritmética | Cenários paramétricos hipotéticos |
+| **Block Bootstrap** | Blocos contíguos de retornos amostrados com reposição | Média aritmética | Séries com autocorrelação serial |
+| **Importance Sampling** | Exponential tilting: \( g(r) \propto e^{\theta r} \) | Média ponderada por likelihood ratio \( W^{(s)} \) | Estimativa de eventos raros (ruína) com menos simulações |
+
+As fórmulas completas e a derivação da variância do estimador IS estão documentadas em [`docs/stochastic_simulation.md`](docs/stochastic_simulation.md).
+
+---
+
 ## Estrutura do Projeto
 
 ```
@@ -163,7 +178,7 @@ moody/
 │   │   ├── core_unified.py         # Unified business logic module
 │   │   ├── asset_universe.py       # Supported asset definitions
 │   │   └── routers/                # REST endpoint modules
-│   ├── tests/                      # pytest suite (26+ tests)
+  │   ├── tests/                      # pytest suite (33+ tests)
 │   │   ├── conftest.py             # Shared fixtures and test DB
 │   │   ├── test_auth.py            # Authentication flow tests
 │   │   ├── test_backtest.py        # Backtesting logic tests
@@ -338,7 +353,7 @@ Todas as rotas abaixo requerem header `Authorization: Bearer <token>`.
 | **Dashboard** | `GET /dashboard/*` | Saldo, PnL flutuante, ordens recentes |
 | **Strategy** | `GET/PUT /strategy/*` | Configuração de ativo, timeframe e MAs |
 | **Backtest** | `POST /backtest/run` | Executar backtesting com pandas |
-| **Monte Carlo** | `POST /montecarlo/simulate` | Simulação de risco (N caminhos) |
+| **Monte Carlo** | `POST /backtest/montecarlo` | Simulação de risco com 4 métodos (Bootstrap, GBM, Block Bootstrap, IS) |
 | **Paper Trading** | `POST /paper/*` | Buy/Sell simulado com posições |
 | **Exchange** | `GET/POST /exchange/*` | Integração paper/live via ccxt |
 | **WebSocket** | `ws://host/ws/market/{ASSET}` | Stream de preços em tempo real |
@@ -398,7 +413,7 @@ pytest tests/ -v --tb=short --cov=app --cov-report=term-missing
 |--------|--------|-----------|
 | `test_auth.py` | Registro, login, refresh, proteção de rotas | Auth flow completo |
 | `test_backtest.py` | Execução de backtest, validação de métricas | Engine de backtesting |
-| `test_montecarlo.py` | Simulação de caminhos, distribuição percentil | Risk analysis |
+| `test_montecarlo.py` | Bootstrap, GBM, Block Bootstrap, IS, fan chart percentil | Risk analysis |
 | `test_circuit_breaker.py` | Estado aberto/fechado/half-open, thresholds | Resiliência |
 | `test_fault_injection.py` | Middleware de injeção de falhas | Chaos engineering |
 | `test_health.py` | Health check endpoint | Liveness probe |
