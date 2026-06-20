@@ -8,7 +8,7 @@ from app.core_unified import get_latest_backtest, run_backtest
 from app.db import get_db
 from app.deps import get_current_user
 from app.models import User, BacktestResult
-from app.schemas import AssetUniverseOut, BacktestResponse, BacktestRunIn, MonteCarloRunIn, MonteCarloResponse
+from app.schemas import AssetUniverseOut, BacktestResponse, BacktestRunIn, MonteCarloRunIn, MonteCarloResponse, SimulationMethod
 from app.services_montecarlo import run_monte_carlo_simulation
 
 router = APIRouter(prefix="/backtest", tags=["Backtest"])
@@ -84,6 +84,9 @@ def run_monte_carlo_route(
             row.equity_curve,
             n_simulations=payload.n_simulations,
             n_days=payload.n_days,
+            method=payload.method.value,
+            block_size=payload.block_size,
+            is_tilt=payload.is_tilt,
         )
         return mc_res
     except ValueError as exc:

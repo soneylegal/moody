@@ -91,6 +91,13 @@ class BacktestMetrics(BaseModel):
     insight_tone: str = "neutral"
 
 
+class SimulationMethod(str, Enum):
+    bootstrap = "bootstrap"
+    gbm = "gbm"
+    block_bootstrap = "block_bootstrap"
+    importance_sampling = "importance_sampling"
+
+
 class MonteCarloMetrics(BaseModel):
     var_95: float          # Value at Risk 95%
     cvar_95: float         # Conditional VaR (Expected Shortfall)
@@ -98,6 +105,8 @@ class MonteCarloMetrics(BaseModel):
     median_final_equity: float
     best_case_equity: float   # P95
     worst_case_equity: float  # P5
+    is_ruin_variance: float | None = None
+    is_effective_sample_size: float | None = None
 
 
 class MonteCarloResponse(BaseModel):
@@ -125,6 +134,9 @@ class BacktestRunIn(BaseModel):
 class MonteCarloRunIn(BaseModel):
     n_simulations: int = Field(1000, ge=10, le=10000)
     n_days: int = Field(252, ge=10, le=1000)
+    method: SimulationMethod = SimulationMethod.bootstrap
+    block_size: int | None = Field(default=None, ge=2, le=100)
+    is_tilt: float | None = Field(default=None)
     asset: str | None = None
     period_label: str = "6 Months"
 
