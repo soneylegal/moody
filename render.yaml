@@ -13,7 +13,7 @@ services:
           property: connectionString
       - key: REDIS_URL
         fromService:
-          type: redis
+          type: keyvalue
           name: moody-redis
           property: connectionString
       - key: JWT_SECRET_KEY
@@ -33,15 +33,16 @@ services:
       - key: OTEL_ENABLED
         value: "false"
 
+  - type: keyvalue
+    name: moody-redis
+    plan: free
+    region: ohio
+    maxmemoryPolicy: noeviction
+    ipAllowList: []
+
 databases:
   - name: moody-db
     plan: free
     region: ohio
     databaseName: moody
     user: moody
-
-redis:
-  - name: moody-redis
-    plan: free
-    region: ohio
-    maxmemoryPolicy: noeviction
