@@ -5,14 +5,14 @@
 **Plataforma de Swing Trade Automatizado com Análise Quantitativa**
 
 [![CI](https://github.com/soneylegal/moody/actions/workflows/ci.yml/badge.svg)](https://github.com/soneylegal/moody/actions/workflows/ci.yml)
-[![Render](https://img.shields.io/badge/Deploy-Render-46E3B7?logo=render&logoColor=white)](https://render.com)
+[![Oracle](https://img.shields.io/badge/Deploy-Oracle_Cloud-F80000?logo=oracle&logoColor=white)](https://cloud.oracle.com)
 [![Python](https://img.shields.io/badge/Python-3.12-3776AB?logo=python&logoColor=white)](https://www.python.org/)
 [![FastAPI](https://img.shields.io/badge/FastAPI-0.115-009688?logo=fastapi&logoColor=white)](https://fastapi.tiangolo.com/)
 [![React](https://img.shields.io/badge/React-18-61DAFB?logo=react&logoColor=black)](https://react.dev/)
 [![TypeScript](https://img.shields.io/badge/TypeScript-5-3178C6?logo=typescript&logoColor=white)](https://www.typescriptlang.org/)
 [![PostgreSQL](https://img.shields.io/badge/PostgreSQL-16-4169E1?logo=postgresql&logoColor=white)](https://www.postgresql.org/)
 [![Redis](https://img.shields.io/badge/Redis-7-DC382D?logo=redis&logoColor=white)](https://redis.io/)
-[![License](https://img.shields.io/badge/License-Private-333333)](#)
+[![License](https://img.shields.io/badge/License-MIT-green)](LICENSE)
 
 ---
 

@@ -17,15 +17,14 @@
 - [ ] Resolver conflitos (se aplicável)
 - [ ] Push para `origin/main`
 
-## 3. Render Deploy Automation
+## 3. Oracle VPS Deploy Infrastructure
 **Priority:** High | **Effort:** 4h
 
-- [ ] Criar `render.yaml` (Blueprint) com serviços:
-  - Web Service: Docker, porta 8000, env vars
-  - PostgreSQL: Free tier
-  - Redis: Free tier (Starter)
-- [ ] Criar `.github/workflows/render-deploy.yml`
-- [ ] Configurar Render Blueprint no dashboard da Render
+- [ ] Criar `scripts/setup-vps.sh` (provisionamento: Docker, UFW, swap)
+- [ ] Criar `Caddyfile` (reverse proxy com SSL automático)
+- [ ] Criar `docker-compose.prod.yml` (Caddy na stack de produção)
+- [ ] Criar `.env.prod.example` (template de variáveis de produção)
+- [ ] Criar `.github/workflows/deploy-vps.yml` (deploy automático via SSH)
 
 ## 4. Fix Dockerfile for Frontend Build
 **Priority:** High | **Effort:** 2h
@@ -46,9 +45,9 @@
 ## 6. Post-Deploy Validation
 **Priority:** Medium | **Effort:** 1h
 
-- [ ] Verificar health check no Render
+- [ ] Verificar health check na VPS
 - [ ] Testar fluxo completo: login → dashboard → paper trade → backtest → monte carlo
-- [ ] Verificar WebSocket funcionando via Render
+- [ ] Verificar WebSocket funcionando via Caddy
 
 ---
 
