@@ -457,45 +457,92 @@ A pipeline CI roda automaticamente em push para `main` e `feature/*`, e em pull 
 
 ## Deploy
 
-### Render (Recomendado)
+### Oracle Cloud VPS (Recomendado)
 
-O deploy usa **Render Blueprint** — basta conectar o repositório que o Render lê o `render.yaml` e provisiona tudo automaticamente.
+Moody roda completo em uma VM **Ampere A1** (4 OCPUs · 24 GB RAM) — tudo dentro do **Free Tier** da Oracle Cloud.
 
-#### Setup via Blueprint (automático)
+#### 1. Provisionar a VPS
 
-1. No [Dashboard da Render](https://dashboard.render.com), clique em **New + → Blueprint**
-2. Conecte o repositório `soneylegal/moody`
-3. O Render detecta o `render.yaml` e cria automaticamente:
-   - **Web Service** (`moody-api`) — Docker, porta 8000
-   - **PostgreSQL** (`moody-db`) — Free tier
-   - **Redis** (`moody-redis`) — Free tier
-4. As variáveis `JWT_SECRET_KEY` e `FIELD_ENCRYPTION_KEY` são geradas automaticamente
-5. Após o deploy, o Web Service estará disponível em `https://moody-api.onrender.com`
+Crie uma VM no Oracle Cloud com:
+- **Shape:** Ampere A1 (VM.Standard.A1.Flex)
+- **OS:** Ubuntu 24.04 LTS
+- **Storage:** 100 GB (free tier)
+- **Firewall:** Liberar portas 22, 80, 443
 
-#### Setup manual (alternativa)
+#### 2. Setup da VPS
 
-1. Crie um banco **PostgreSQL** no Render → copie a **Internal Database URL**
-2. Crie um serviço **Redis** no Render → copie a **Internal Redis URL**
-3. Crie um **Web Service** (Docker) apontando para o repositório:
-   - **Branch:** `main` · **Root Directory:** (raiz)
-   - **Dockerfile:** `backend/Dockerfile`
-4. Configure as environment variables:
-
-```env
-DATABASE_URL=<Internal Database URL>
-REDIS_URL=<Internal Redis URL>
-JWT_SECRET_KEY=<gere com: python3 -c "import secrets; print(secrets.token_urlsafe(64))">
-FIELD_ENCRYPTION_KEY=<gere com: python3 -c "from cryptography.fernet import Fernet; print(Fernet.generate_key().decode())">
-CORS_ORIGINS=https://moody-api.onrender.com
+```bash
+ssh ubuntu@<ip-da-vps>
+curl -fsSL https://get.docker.com | sh
+sudo usermod -aG docker $USER
+# Faça logout e login novamente
 ```
 
-#### Endpoints em produção
+Ou use o script automatizado:
+
+```bash
+ssh ubuntu@<ip-da-vps> 'bash -s' < scripts/setup-vps.sh
+```
+
+#### 3. Configurar secrets na VPS
+
+```bash
+ssh ubuntu@<ip-da-vps>
+mkdir -p ~/moody && cd ~/moody
+
+# Copie e edite o .env de produção
+cat > .env << 'EOF'
+JWT_SECRET_KEY=$(python3 -c "import secrets; print(secrets.token_urlsafe(64))")
+FIELD_ENCRYPTION_KEY=$(python3 -c "from cryptography.fernet import Fernet; print(Fernet.generate_key().decode())")
+CORS_ORIGINS=https://seu-dominio.com
+EOF
+```
+
+#### 4. Configurar domínio (opcional)
+
+Edite `Caddyfile` e substitua `moody.example.com` pelo seu domínio:
+
+```
+moody.seudominio.com {
+    reverse_proxy backend:8000
+    header / Strict-Transport-Security "max-age=31536000"
+    encode zstd gzip
+}
+```
+
+Aponte o DNS do seu domínio para o IP da VPS. O Caddy obtém SSL automaticamente.
+
+#### 5. Subir a stack
+
+```bash
+cd ~/moody
+
+# Clone o repositório
+git clone https://github.com/soneylegal/moody.git .
+
+# Suba todos os serviços com Caddy
+docker compose -f docker-compose.yml -f docker-compose.prod.yml up -d --build
+```
+
+#### 6. Deploy automático (GitHub Actions)
+
+Configure os seguintes **secrets** no repositório GitHub:
+
+| Secret | Valor |
+|--------|-------|
+| `VPS_HOST` | IP da VPS |
+| `VPS_USER` | `ubuntu` |
+| `VPS_SSH_KEY` | Chave privada SSH (deploy) |
+
+A cada push na `main`, o workflow `.github/workflows/deploy-vps.yml` atualiza automaticamente os serviços na VPS.
+
+#### Endpoints
 
 | Recurso | URL |
 |---------|-----|
-| Interface Web | `https://<app>.onrender.com/` |
-| Swagger | `https://<app>.onrender.com/docs` |
-| Health Check | `https://<app>.onrender.com/health` |
+| Interface Web | `https://seu-dominio.com/` (ou `http://<ip>:80`) |
+| Swagger | `https://seu-dominio.com/docs` |
+| Health Check | `https://seu-dominio.com/health` |
 
 ---
 

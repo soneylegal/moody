@@ -1,0 +1,14 @@
+# Moody — Caddy reverse proxy with automatic SSL
+# Replace with your actual domain or keep as-is to use IP-based access (HTTP only)
+# For HTTPS with your own domain, uncomment the domain line below.
+
+moody.example.com {
+    reverse_proxy backend:8000
+    header / Strict-Transport-Security "max-age=31536000; includeSubDomains"
+    encode zstd gzip
+}
+
+# For IP-based access (HTTP only, no SSL):
+# :80 {
+#     reverse_proxy backend:8000
+# }
