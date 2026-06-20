@@ -5,6 +5,7 @@
 **Plataforma de Swing Trade Automatizado com Análise Quantitativa**
 
 [![CI](https://github.com/soneylegal/moody/actions/workflows/ci.yml/badge.svg)](https://github.com/soneylegal/moody/actions/workflows/ci.yml)
+[![Render](https://img.shields.io/badge/Deploy-Render-46E3B7?logo=render&logoColor=white)](https://render.com)
 [![Python](https://img.shields.io/badge/Python-3.12-3776AB?logo=python&logoColor=white)](https://www.python.org/)
 [![FastAPI](https://img.shields.io/badge/FastAPI-0.115-009688?logo=fastapi&logoColor=white)](https://fastapi.tiangolo.com/)
 [![React](https://img.shields.io/badge/React-18-61DAFB?logo=react&logoColor=black)](https://react.dev/)
@@ -458,20 +459,26 @@ A pipeline CI roda automaticamente em push para `main` e `feature/*`, e em pull 
 
 ### Render (Recomendado)
 
-#### Serviços necessários
+O deploy usa **Render Blueprint** — basta conectar o repositório que o Render lê o `render.yaml` e provisiona tudo automaticamente.
 
-| Serviço | Tipo | Tier |
-|---------|------|------|
-| PostgreSQL | Managed Database | Free / Starter |
-| Redis | Key-Value Store | Free / Starter |
-| Web Service | Docker | Free / Starter |
+#### Setup via Blueprint (automático)
 
-#### Setup
+1. No [Dashboard da Render](https://dashboard.render.com), clique em **New + → Blueprint**
+2. Conecte o repositório `soneylegal/moody`
+3. O Render detecta o `render.yaml` e cria automaticamente:
+   - **Web Service** (`moody-api`) — Docker, porta 8000
+   - **PostgreSQL** (`moody-db`) — Free tier
+   - **Redis** (`moody-redis`) — Free tier
+4. As variáveis `JWT_SECRET_KEY` e `FIELD_ENCRYPTION_KEY` são geradas automaticamente
+5. Após o deploy, o Web Service estará disponível em `https://moody-api.onrender.com`
+
+#### Setup manual (alternativa)
 
 1. Crie um banco **PostgreSQL** no Render → copie a **Internal Database URL**
 2. Crie um serviço **Redis** no Render → copie a **Internal Redis URL**
 3. Crie um **Web Service** (Docker) apontando para o repositório:
-   - **Branch:** `main` · **Root Directory:** `backend`
+   - **Branch:** `main` · **Root Directory:** (raiz)
+   - **Dockerfile:** `backend/Dockerfile`
 4. Configure as environment variables:
 
 ```env
@@ -479,6 +486,7 @@ DATABASE_URL=<Internal Database URL>
 REDIS_URL=<Internal Redis URL>
 JWT_SECRET_KEY=<gere com: python3 -c "import secrets; print(secrets.token_urlsafe(64))">
 FIELD_ENCRYPTION_KEY=<gere com: python3 -c "from cryptography.fernet import Fernet; print(Fernet.generate_key().decode())">
+CORS_ORIGINS=https://moody-api.onrender.com
 ```
 
 #### Endpoints em produção
