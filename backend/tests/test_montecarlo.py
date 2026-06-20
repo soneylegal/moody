@@ -59,3 +59,112 @@ def test_monte_carlo_api_endpoint(client, auth_headers):
         assert "metrics" in data
         assert "fan_chart" in data
         assert len(data["fan_chart"]["p50"]) == 30
+
+
+# ---------------------------------------------------------------------------
+# GBM
+# ---------------------------------------------------------------------------
+
+
+def test_gbm_paths_distribution():
+    equity_curve = [10000.0, 10100.0, 10200.0, 10300.0, 10400.0, 10500.0]
+    res = run_monte_carlo_simulation(
+        equity_curve, n_simulations=500, n_days=50, method="gbm"
+    )
+    assert res["simulations_run"] == 500
+    assert "metrics" in res
+    assert res["metrics"]["best_case_equity"] >= res["metrics"]["median_final_equity"]
+    assert res["metrics"]["median_final_equity"] >= res["metrics"]["worst_case_equity"]
+    for p in ["p5", "p25", "p50", "p75", "p95"]:
+        assert p in res["fan_chart"]
+        assert len(res["fan_chart"][p]) == 50
+
+
+def test_gbm_with_negative_returns():
+    equity_curve = [10000.0, 9900.0, 9500.0, 9200.0, 9000.0, 8800.0]
+    res = run_monte_carlo_simulation(
+        equity_curve, n_simulations=200, n_days=20, method="gbm"
+    )
+    assert res["simulations_run"] == 200
+    assert res["metrics"]["var_95"] >= 0
+
+
+# ---------------------------------------------------------------------------
+# Block Bootstrap
+# ---------------------------------------------------------------------------
+
+
+def test_block_bootstrap_runs():
+    equity_curve = [10000.0, 9900.0, 10100.0, 10200.0, 9800.0, 10500.0]
+    res = run_monte_carlo_simulation(
+        equity_curve, n_simulations=50, n_days=20, method="block_bootstrap"
+    )
+    assert res["simulations_run"] == 50
+    assert "metrics" in res
+    assert len(res["fan_chart"]["p50"]) == 20
+
+
+def test_block_bootstrap_custom_block_size():
+    equity_curve = [10000.0, 9900.0, 10100.0, 10200.0, 9800.0, 10500.0]
+    res = run_monte_carlo_simulation(
+        equity_curve, n_simulations=30, n_days=15, method="block_bootstrap", block_size=3
+    )
+    assert res["simulations_run"] == 30
+    assert "metrics" in res
+
+
+# ---------------------------------------------------------------------------
+# Importance Sampling
+# ---------------------------------------------------------------------------
+
+
+def test_importance_sampling_runs():
+    equity_curve = [10000.0, 9900.0, 10100.0, 9800.0, 9600.0, 10200.0]
+    res = run_monte_carlo_simulation(
+        equity_curve,
+        n_simulations=100,
+        n_days=10,
+        method="importance_sampling",
+        is_tilt=-2.0,
+    )
+    assert res["simulations_run"] == 100
+    assert "probability_of_ruin" in res["metrics"]
+
+
+def test_importance_sampling_is_diagnostics():
+    equity_curve = [10000.0, 9500.0, 9000.0, 8500.0, 8000.0, 7500.0]
+    res = run_monte_carlo_simulation(
+        equity_curve,
+        n_simulations=200,
+        n_days=10,
+        method="importance_sampling",
+        is_tilt=-1.0,
+    )
+    metrics = res["metrics"]
+    assert "is_ruin_variance" in metrics
+    assert "is_effective_sample_size" in metrics
+    assert metrics["is_effective_sample_size"] > 0
+
+
+# ---------------------------------------------------------------------------
+# Consistency across methods
+# ---------------------------------------------------------------------------
+
+
+def test_all_methods_return_same_structure():
+    equity_curve = [10000.0, 10100.0, 10200.0, 10300.0, 10400.0, 10500.0]
+    for method in ["bootstrap", "gbm", "block_bootstrap", "importance_sampling"]:
+        kwargs = {"method": method}
+        if method == "importance_sampling":
+            kwargs["is_tilt"] = -0.5
+        res = run_monte_carlo_simulation(
+            equity_curve, n_simulations=50, n_days=10, **kwargs
+        )
+        assert res["simulations_run"] == 50
+        assert set(res["metrics"]) >= {
+            "var_95", "cvar_95", "probability_of_ruin",
+            "median_final_equity", "best_case_equity", "worst_case_equity",
+        }
+        for p in ["p5", "p25", "p50", "p75", "p95"]:
+            assert p in res["fan_chart"]
+            assert len(res["fan_chart"][p]) == 10
