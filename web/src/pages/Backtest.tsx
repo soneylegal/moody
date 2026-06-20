@@ -77,6 +77,9 @@ export const Backtest: React.FC = () => {
   // Monte Carlo parameters
   const [numSimulations, setNumSimulations] = useState(1000);
   const [numDays, setNumDays] = useState(252);
+  const [method, setMethod] = useState("bootstrap");
+  const [blockSize, setBlockSize] = useState<number | null>(null);
+  const [isTilt, setIsTilt] = useState<number | null>(null);
 
   // Results state
   const [backtestResult, setBacktestResult] = useState<BacktestResponse | null>(null);
@@ -147,6 +150,9 @@ export const Backtest: React.FC = () => {
           period_label: periodLabel,
           n_simulations: numSimulations,
           n_days: numDays,
+          method,
+          block_size: method === "block_bootstrap" ? blockSize : null,
+          is_tilt: method === "importance_sampling" ? isTilt : null,
         }),
       });
       setMonteCarloResult(result);
@@ -183,6 +189,13 @@ export const Backtest: React.FC = () => {
       </div>
     );
   }
+
+  const methodDescriptions: Record<string, string> = {
+    bootstrap: "Sorteio i.i.d. com reposição dos retornos históricos (padrão).",
+    gbm: "Assume distribuição lognormal dos preços com drift e volatilidade estimados.",
+    block_bootstrap: "Preserva autocorrelação serial amostrando blocos contíguos de retornos.",
+    importance_sampling: "Tilting exponencial p/ estimar ruína com menos simulações.",
+  };
 
   const equityChartData = getEquityChartData();
 
@@ -333,6 +346,25 @@ export const Backtest: React.FC = () => {
                   <span>20 dias</span>
                   <span>500 dias</span>
                 </div>
+              </div>
+
+              <div className="space-y-2">
+                <label className="block text-slate-400 text-xs font-semibold uppercase tracking-wider">
+                  Método de Simulação
+                </label>
+                <select
+                  value={method}
+                  onChange={(e) => setMethod(e.target.value)}
+                  className="w-full bg-slate-900 border border-slate-800 rounded-xl py-3 px-4 text-slate-200 focus:outline-none focus:border-indigo-500/50 text-sm"
+                >
+                  <option value="bootstrap">Bootstrap (resampling)</option>
+                  <option value="gbm">GBM (Mov. Browniano Geométrico)</option>
+                  <option value="block_bootstrap">Block Bootstrap</option>
+                  <option value="importance_sampling">Importance Sampling</option>
+                </select>
+                <p className="text-[10px] text-slate-500 mt-1 leading-relaxed">
+                  {methodDescriptions[method]}
+                </p>
               </div>
             </div>
           </div>
