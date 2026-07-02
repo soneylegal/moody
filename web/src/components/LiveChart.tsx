@@ -48,6 +48,8 @@ export const LiveChart: React.FC<LiveChartProps> = ({ data, livePrice }) => {
       height: 320,
     });
 
+    if (!chart || !chart.addSeries) return;
+
     // Add candlestick series
     const candlestickSeries = chart.addSeries(CandlestickSeries, {
       upColor: "#10b981",

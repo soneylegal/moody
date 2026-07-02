@@ -30,7 +30,11 @@
   "jest": {
     "transformIgnorePatterns": [
       "node_modules/(?!(lightweight-charts|fancy-canvas)/)"
-    ]
+    ],
+    "moduleNameMapper": {
+      "^lightweight-charts$": "<rootDir>/src/__mocks__/lightweight-charts.js",
+      "^fancy-canvas$": "<rootDir>/src/__mocks__/fancy-canvas.js"
+    }
   },
   "eslintConfig": {
     "extends": [
