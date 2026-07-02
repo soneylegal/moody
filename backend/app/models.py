@@ -1,6 +1,6 @@
 import enum
 import uuid
-from datetime import datetime
+from datetime import datetime, timezone
 from decimal import Decimal
 
 from cryptography.fernet import Fernet, InvalidToken
@@ -76,7 +76,7 @@ class User(Base):
     password_hash: Mapped[str] = mapped_column(String(255), nullable=False)
     balance: Mapped[Decimal] = mapped_column(Numeric(14, 2), default=Decimal("10000"))
     is_active: Mapped[bool] = mapped_column(Boolean, default=True)
-    created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=lambda: datetime.now(timezone.utc))
 
 
 class StrategyConfig(Base):
@@ -87,8 +87,8 @@ class StrategyConfig(Base):
     timeframe: Mapped[str] = mapped_column(String(10), nullable=False)
     ma_short_period: Mapped[int] = mapped_column(Integer, nullable=False)
     ma_long_period: Mapped[int] = mapped_column(Integer, nullable=False)
-    created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
-    updated_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=lambda: datetime.now(timezone.utc))
+    updated_at: Mapped[datetime] = mapped_column(DateTime, default=lambda: datetime.now(timezone.utc), onupdate=lambda: datetime.now(timezone.utc))
 
 
 class BotStatus(Base):
@@ -98,7 +98,7 @@ class BotStatus(Base):
     status: Mapped[str] = mapped_column(String(20), default="Running")
     daily_pnl: Mapped[Decimal] = mapped_column(Numeric(14, 2), default=Decimal("0"))
     current_asset: Mapped[str] = mapped_column(String(20), nullable=True)
-    updated_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+    updated_at: Mapped[datetime] = mapped_column(DateTime, default=lambda: datetime.now(timezone.utc), onupdate=lambda: datetime.now(timezone.utc))
 
 
 class MarketTick(Base):
@@ -108,7 +108,7 @@ class MarketTick(Base):
     asset: Mapped[str] = mapped_column(String(20), nullable=False)
     price: Mapped[Decimal] = mapped_column(Numeric(14, 4), nullable=False)
     volume: Mapped[Decimal] = mapped_column(Numeric(20, 4), default=Decimal("0"))
-    tick_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
+    tick_at: Mapped[datetime] = mapped_column(DateTime, default=lambda: datetime.now(timezone.utc))
 
 
 class BacktestResult(Base):
@@ -124,7 +124,7 @@ class BacktestResult(Base):
     max_drawdown: Mapped[float] = mapped_column(Float, default=0)
     sharpe_ratio: Mapped[float] = mapped_column(Float, default=0)
     equity_curve: Mapped[list] = mapped_column(JSON, default=list)
-    created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=lambda: datetime.now(timezone.utc))
 
 
 class LogEntry(Base):
@@ -144,7 +144,7 @@ class LogEntry(Base):
     )
     message: Mapped[str] = mapped_column(Text, nullable=False)
     details: Mapped[dict | None] = mapped_column(JSON, nullable=True)
-    created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=lambda: datetime.now(timezone.utc))
 
 
 class AppSettings(Base):
@@ -160,7 +160,7 @@ class AppSettings(Base):
     paper_trading: Mapped[bool] = mapped_column(Boolean, default=True)
     dark_mode: Mapped[bool] = mapped_column(Boolean, default=True)
     simulated_balance: Mapped[Decimal] = mapped_column(Numeric(14, 2), default=Decimal("10000"))
-    updated_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+    updated_at: Mapped[datetime] = mapped_column(DateTime, default=lambda: datetime.now(timezone.utc), onupdate=lambda: datetime.now(timezone.utc))
 
 
 
@@ -175,7 +175,7 @@ class PaperOrder(Base):
     quantity: Mapped[Decimal] = mapped_column(Numeric(14, 4), nullable=False)
     status: Mapped[OrderStatus] = mapped_column(Enum(OrderStatus), default=OrderStatus.filled)
     simulated: Mapped[bool] = mapped_column(Boolean, default=True)
-    created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=lambda: datetime.now(timezone.utc))
 
 
 class UserBalance(Base):
@@ -185,7 +185,7 @@ class UserBalance(Base):
         UUID(as_uuid=True), ForeignKey("users.id"), primary_key=True, nullable=False
     )
     balance: Mapped[Decimal] = mapped_column(Numeric(14, 2), default=Decimal("10000"))
-    updated_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+    updated_at: Mapped[datetime] = mapped_column(DateTime, default=lambda: datetime.now(timezone.utc), onupdate=lambda: datetime.now(timezone.utc))
 
 
 class UserPosition(Base):
@@ -197,4 +197,4 @@ class UserPosition(Base):
     asset: Mapped[str] = mapped_column(String(20), nullable=False)
     quantity: Mapped[Decimal] = mapped_column(Numeric(14, 4), default=Decimal("0"))
     avg_entry_price: Mapped[Decimal] = mapped_column(Numeric(14, 4), default=Decimal("0"))
-    updated_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+    updated_at: Mapped[datetime] = mapped_column(DateTime, default=lambda: datetime.now(timezone.utc), onupdate=lambda: datetime.now(timezone.utc))

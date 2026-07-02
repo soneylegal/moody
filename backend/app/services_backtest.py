@@ -30,8 +30,7 @@ def run_ma_backtest(
             timestamps = parsed_timestamps
 
     df = pd.DataFrame({"close": prices}, index=pd.to_datetime(timestamps, utc=True)).sort_index()
-    df["ma_short"] = df["close"].rolling(ma_short).mean()
-    df["ma_long"] = df["close"].rolling(ma_long).mean()
+    df = df.assign(ma_short=df["close"].rolling(ma_short).mean(), ma_long=df["close"].rolling(ma_long).mean())
     df = df.dropna().copy()
 
     if df.empty:

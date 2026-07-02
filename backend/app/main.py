@@ -1,4 +1,5 @@
 import asyncio
+from contextlib import asynccontextmanager
 from datetime import datetime, timezone
 from pathlib import Path
 
@@ -16,7 +17,48 @@ from app.services_bot import bot_automation_loop
 from app.services_exchange import ExchangeService
 from app.services_stream import manager, market_stream_loop
 
-app = FastAPI(title=API_TITLE, version=API_VERSION)
+@asynccontextmanager
+async def lifespan(_app: FastAPI):
+    global _bg_stop_event, _bg_tasks, _startup_ready, _startup_error
+
+    def _initialize_sync() -> None:
+        Base.metadata.create_all(bind=engine)
+        apply_runtime_migrations()
+        db = SessionLocal()
+        try:
+            ensure_seed_admin(db)
+        finally:
+            db.close()
+
+    try:
+        await asyncio.wait_for(asyncio.to_thread(_initialize_sync), timeout=90)
+        _startup_ready = True
+        _startup_error = None
+    except Exception as exc:
+        _startup_ready = False
+        _startup_error = f"startup initialization failed: {exc}"
+        print(_startup_error)
+
+    _bg_stop_event = asyncio.Event()
+    _bg_tasks = [
+        asyncio.create_task(market_stream_loop(_bg_stop_event), name="market-stream-loop"),
+        asyncio.create_task(bot_automation_loop(_bg_stop_event), name="bot-automation-loop"),
+    ]
+
+    yield
+
+    if _bg_stop_event:
+        _bg_stop_event.set()
+    for task in _bg_tasks:
+        task.cancel()
+    if _bg_tasks:
+        await asyncio.gather(*_bg_tasks, return_exceptions=True)
+    _bg_tasks = []
+    _bg_stop_event = None
+    _startup_ready = False
+    _startup_error = None
+
+app = FastAPI(title=API_TITLE, version=API_VERSION, lifespan=lifespan)
 
 # Initialize OpenTelemetry instrumentation (no-op when OTEL_ENABLED=false)
 from app.telemetry import init_telemetry
@@ -41,50 +83,6 @@ if FAULT_INJECTION_ENABLED:
     app.add_middleware(FaultInjectionMiddleware)
 
 
-
-@app.on_event("startup")
-async def on_startup():
-    global _bg_stop_event, _bg_tasks, _startup_ready, _startup_error
-
-    def _initialize_sync() -> None:
-        Base.metadata.create_all(bind=engine)
-        apply_runtime_migrations()
-        db = SessionLocal()
-        try:
-            ensure_seed_admin(db)
-        finally:
-            db.close()
-
-    try:
-        # Avoid blocking container startup forever if database/network is slow.
-        await asyncio.wait_for(asyncio.to_thread(_initialize_sync), timeout=90)
-        _startup_ready = True
-        _startup_error = None
-    except Exception as exc:
-        _startup_ready = False
-        _startup_error = f"startup initialization failed: {exc}"
-        print(_startup_error)
-
-    _bg_stop_event = asyncio.Event()
-    _bg_tasks = [
-        asyncio.create_task(market_stream_loop(_bg_stop_event), name="market-stream-loop"),
-        asyncio.create_task(bot_automation_loop(_bg_stop_event), name="bot-automation-loop"),
-    ]
-
-
-@app.on_event("shutdown")
-async def on_shutdown():
-    global _bg_stop_event, _bg_tasks, _startup_ready, _startup_error
-    if _bg_stop_event:
-        _bg_stop_event.set()
-    for task in _bg_tasks:
-        task.cancel()
-    if _bg_tasks:
-        await asyncio.gather(*_bg_tasks, return_exceptions=True)
-    _bg_tasks = []
-    _bg_stop_event = None
-    _startup_ready = False
-    _startup_error = None
 
 @app.get("/health")
 def health():
