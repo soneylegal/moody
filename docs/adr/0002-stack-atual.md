@@ -113,6 +113,7 @@ código):
 | **Versão FastAPI** | `FastAPI 0.115` (badge) | `fastapi>=0.116.1` em `pyproject.toml` | ✅ Corrigido para 0.116 |
 | **Versão TypeScript** | `TypeScript 5` (badge) | `typescript@^4.9.5` | ✅ Corrigido para 4.9 |
 | **CORS default** | docs não mencionam | `config.py:52` referenciava `localhost:19006` (Expo legacy) | ✅ Corrigido para `localhost:8000,localhost:3000` |
+| **Admin seed hardcoded** | docs não mencionavam | `core_unified.py:84-91` criava `admin@botbot.local`/`admin123` a cada boot | ✅ Removido (backdoor em produção) |
 
 ### Observação metodológica
 
@@ -422,6 +423,15 @@ rígido para `FIELD_ENCRYPTION_KEY`.
 - `.env` na VPS gerado manualmente (fragilidade humana; uploaded via SCP)
 **Cost:** Risco de deployment downtime por erro de config.
 
+**Emenda (2025-07-10):** Identificou-se e removeu-se uma função
+`ensure_seed_admin()` em `core_unified.py:84-91` que, a cada boot, criava
+ou atualizava um usuário admin com credenciais hardcoded
+(`admin@botbot.local` / `admin123`). Como a função valia em qualquer
+ambiente (dev, CI, produção), caracterizava backdoor em deploy real —
+contraditório com a postura fail-fast deste ADR. Removida do `lifespan`
+em `main.py`. O primeiro admin agora é criado via `POST /auth/register`
+(endpoint público). Documentado no README como "No Seed Admin".
+
 ### D-015 — `apply_runtime_migrations()` DIY em vez de Alembic
 **Status:** Active (dívida técnica)
 **Decisão:** No boot (`main.py:25`) chama `apply_runtime_migrations()` em
@@ -497,8 +507,10 @@ estaticamente ligado.
    faltar (testes que precisam de app boot)
 8. **Chaos Toolkit experimentos não automatizados** → só correm manualmente
 9. **DB naming inconsistência**: `swingbot` (dev compose) vs `moody`
-   (`.env.prod.example`)
-10. **Single uvicorn worker** → CPU-bound em in-process (pandas MC no
+   (`.env.prod.example`) — **corrigido** (renomeação swingbot→moody + portas 5433/6380)
+10. **Admin seed hardcoded** (`core_unified.py`) — **removido**
+    (era backdoor em produção; ver emenda em D-014)
+11. **Single uvicorn worker** → CPU-bound em in-process (pandas MC no
     request) aparece em produção (`/montecarlo/simulate`); mitigado por
     Celery offload parcial mas não completo
 
