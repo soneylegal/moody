@@ -7,9 +7,9 @@
 [![CI](https://github.com/soneylegal/moody/actions/workflows/ci.yml/badge.svg)](https://github.com/soneylegal/moody/actions/workflows/ci.yml)
 [![Oracle](https://img.shields.io/badge/Deploy-Oracle_Cloud-F80000?logo=oracle&logoColor=white)](https://cloud.oracle.com)
 [![Python](https://img.shields.io/badge/Python-3.12-3776AB?logo=python&logoColor=white)](https://www.python.org/)
-[![FastAPI](https://img.shields.io/badge/FastAPI-0.115-009688?logo=fastapi&logoColor=white)](https://fastapi.tiangolo.com/)
-[![React](https://img.shields.io/badge/React-18-61DAFB?logo=react&logoColor=black)](https://react.dev/)
-[![TypeScript](https://img.shields.io/badge/TypeScript-5-3178C6?logo=typescript&logoColor=white)](https://www.typescriptlang.org/)
+[![FastAPI](https://img.shields.io/badge/FastAPI-0.116-009688?logo=fastapi&logoColor=white)](https://fastapi.tiangolo.com/)
+[![React](https://img.shields.io/badge/React-19-61DAFB?logo=react&logoColor=black)](https://react.dev/)
+[![TypeScript](https://img.shields.io/badge/TypeScript-4.9-3178C6?logo=typescript&logoColor=white)](https://www.typescriptlang.org/)
 [![PostgreSQL](https://img.shields.io/badge/PostgreSQL-16-4169E1?logo=postgresql&logoColor=white)](https://www.postgresql.org/)
 [![Redis](https://img.shields.io/badge/Redis-7-DC382D?logo=redis&logoColor=white)](https://redis.io/)
 [![License](https://img.shields.io/badge/License-MIT-green)](LICENSE)
@@ -65,7 +65,7 @@ flowchart TB
     end
 
     subgraph Frontend["🖥️ Presentation"]
-        React["React 18<br/>(TypeScript · TailwindCSS)"]
+        React["React 19<br/>(TypeScript · TailwindCSS)"]
         LC["Lightweight Charts v5"]
         RC["Recharts<br/>(Monte Carlo Fan)"]
     end
@@ -126,12 +126,12 @@ sequenceDiagram
 
 | Camada | Tecnologias | Propósito |
 |--------|------------|-----------|
-| **Frontend** | React 18 · TypeScript · TailwindCSS · Lightweight Charts v5 · Recharts | SPA com gráficos interativos em tempo real |
-| **API Gateway** | FastAPI · Pydantic v2 · Uvicorn | REST + WebSocket, validação e serialização |
+| **Frontend** | React 19 · TypeScript 4.9 · TailwindCSS · Lightweight Charts v5 · Recharts | SPA com gráficos interativos em tempo real |
+| **API Gateway** | FastAPI 0.116 · Pydantic v2 · Uvicorn | REST + WebSocket, validação e serialização |
 | **Async Processing** | Celery · Redis (broker) | Workers desacoplados para análise de estratégias |
 | **Cache** | Redis 7 (cache) | Price cache sub-millisecond para spot prices |
 | **Persistence** | PostgreSQL 16 · SQLAlchemy 2 | Ordens, logs, configurações e candles consolidados |
-| **Auth & Security** | JWT (HS256) · Fernet · bcrypt | Autenticação stateless com encryption at rest |
+| **Auth & Security** | JWT (HS256) · Fernet · PBKDF2-SHA256 | Autenticação stateless com encryption at rest |
 | **Observability** | OpenTelemetry SDK | Tracing distribuído e métricas customizadas |
 | **Resilience** | Circuit Breaker · Chaos Toolkit | Tolerância a falhas em serviços externos |
 | **CI/CD** | GitHub Actions · Docker Compose | Pipeline automatizada com PostgreSQL service |
@@ -216,7 +216,7 @@ moody/
 | Ferramenta | Versão | Obrigatório |
 |-----------|--------|-------------|
 | Docker + Compose | 24+ | ✅ |
-| Node.js | 18+ | Para dev frontend |
+| Node.js | 18+ (Alpine no build Docker) | Para dev frontend |
 | Python | 3.12+ | Para dev backend |
 
 ### 1. Configure os segredos
@@ -351,7 +351,7 @@ Todas as rotas abaixo requerem header `Authorization: Bearer <token>`.
 graph TB
     subgraph Auth["🔐 Authentication"]
         JWT["JWT HS256<br/>(access + refresh)"]
-        BC["bcrypt<br/>(password hashing)"]
+        BC["PBKDF2-SHA256<br/>(password hashing, 120k rounds)"]
     end
 
     subgraph Encryption["🔒 Encryption at Rest"]
@@ -378,7 +378,7 @@ graph TB
 |-----------|---------------|----------|
 | **JWT Auth** | `HS256`, access (2h) + refresh (7d) | Autenticação stateless |
 | **Fernet Encryption** | `EncryptedString` TypeDecorator | API keys encriptadas no banco |
-| **bcrypt** | Hashing de senhas com salt | Proteção contra rainbow tables |
+| **PBKDF2-SHA256** | Hashing de senhas com salt aleatório, 120k rounds | Proteção contra rainbow tables |
 | **CORS** | Whitelist via `CORS_ORIGINS` | Bloqueio de origens não autorizadas |
 | **Circuit Breaker** | Padrão de resiliência | Proteção contra cascading failures |
 | **Fail-Fast Startup** | `sys.exit(1)` se secrets ausentes | Impede boot inseguro |

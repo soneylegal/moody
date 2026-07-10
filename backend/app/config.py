@@ -49,7 +49,7 @@ if not FIELD_ENCRYPTION_KEY:
 # ---------------------------------------------------------------------------
 # CORS  (C8 — origens restritas, sem wildcard)
 # ---------------------------------------------------------------------------
-_raw_origins = os.getenv("CORS_ORIGINS", "http://localhost:8081,http://localhost:19006")
+_raw_origins = os.getenv("CORS_ORIGINS", "http://localhost:8000,http://localhost:3000")
 CORS_ORIGINS: list[str] = [o.strip() for o in _raw_origins.split(",") if o.strip()]
 
 # ---------------------------------------------------------------------------
