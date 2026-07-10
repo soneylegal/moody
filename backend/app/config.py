@@ -7,7 +7,7 @@ load_dotenv()
 
 _db_url = os.getenv(
     "DATABASE_URL",
-    "postgresql+psycopg://postgres:postgres@localhost:5432/swingbot",
+    "postgresql+psycopg://postgres:postgres@localhost:5433/moody",
 )
 if _db_url.startswith("postgres://"):
     _db_url = _db_url.replace("postgres://", "postgresql+psycopg://", 1)

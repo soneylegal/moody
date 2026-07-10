@@ -1,15 +1,15 @@
 services:
   postgres:
     image: postgres:16
-    container_name: swingbot-postgres
+    container_name: moody-postgres
     environment:
       POSTGRES_USER: postgres
       POSTGRES_PASSWORD: postgres
-      POSTGRES_DB: swingbot
+      POSTGRES_DB: moody
     ports:
-      - '5432:5432'
+      - '5433:5432'
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U postgres -d swingbot"]
+      test: ["CMD-SHELL", "pg_isready -U postgres -d moody"]
       interval: 5s
       timeout: 3s
       retries: 10
@@ -19,23 +19,23 @@ services:
 
   redis:
     image: redis:7-alpine
-    container_name: swingbot-redis
+    container_name: moody-redis
     ports:
-      - '6379:6379'
+      - '6380:6379'
     restart: unless-stopped
 
   backend:
     build:
       context: .
       dockerfile: backend/Dockerfile
-    container_name: swingbot-backend
+    container_name: moody-backend
     depends_on:
       postgres:
         condition: service_healthy
       redis:
         condition: service_started
     environment:
-      DATABASE_URL: postgresql+psycopg://postgres:postgres@postgres:5432/swingbot
+      DATABASE_URL: postgresql+psycopg://postgres:postgres@postgres:5432/moody
       REDIS_URL: redis://redis:6379/0
       API_TITLE: Swing Trade Bot API
       API_VERSION: 0.1.0
@@ -56,7 +56,7 @@ services:
       context: .
       dockerfile: backend/Dockerfile
       target: backend
-    container_name: swingbot-celery-worker
+    container_name: moody-celery-worker
     command: celery -A app.tasks worker --loglevel=info
     depends_on:
       postgres:
@@ -64,7 +64,7 @@ services:
       redis:
         condition: service_started
     environment:
-      DATABASE_URL: postgresql+psycopg://postgres:postgres@postgres:5432/swingbot
+      DATABASE_URL: postgresql+psycopg://postgres:postgres@postgres:5432/moody
       REDIS_URL: redis://redis:6379/0
       JWT_SECRET_KEY: ${JWT_SECRET_KEY}
       FIELD_ENCRYPTION_KEY: ${FIELD_ENCRYPTION_KEY}
@@ -75,13 +75,15 @@ services:
       context: .
       dockerfile: backend/Dockerfile
       target: backend
-    container_name: swingbot-celery-beat
+    container_name: moody-celery-beat
     command: celery -A app.tasks beat --loglevel=info
     depends_on:
       redis:
         condition: service_started
     environment:
       REDIS_URL: redis://redis:6379/0
+      JWT_SECRET_KEY: ${JWT_SECRET_KEY}
+      FIELD_ENCRYPTION_KEY: ${FIELD_ENCRYPTION_KEY}
     restart: unless-stopped
 
 volumes:
