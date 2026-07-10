@@ -81,16 +81,6 @@ def authenticate_user(db: Session, email: str, password: str) -> models.User | N
     return user
 
 
-def ensure_seed_admin(db: Session):
-    user = get_user_by_email(db, "admin@botbot.local")
-    if not user:
-        create_user(db, "admin@botbot.local", "admin123")
-        return
-    if not user.password_hash.startswith("pbkdf2_sha256$"):
-        user.password_hash = hash_password("admin123")
-        db.commit()
-
-
 def _append_log(db: Session, level: models.LogLevel, message: str, details: dict | None = None, user_id: uuid.UUID | None = None):
     db.add(models.LogEntry(level=level, message=message, details=details, user_id=user_id))
 

@@ -9,7 +9,6 @@ from fastapi import WebSocket, WebSocketDisconnect
 from fastapi.staticfiles import StaticFiles
 
 from app.config import API_TITLE, API_VERSION, CORS_ORIGINS
-from app.core_unified import ensure_seed_admin
 from app.db import Base, SessionLocal, apply_runtime_migrations, engine
 from app.models import AppSettings, MarketTick
 from app.routers import auth, backtest, dashboard, logs, paper, settings, strategy
@@ -24,11 +23,6 @@ async def lifespan(_app: FastAPI):
     def _initialize_sync() -> None:
         Base.metadata.create_all(bind=engine)
         apply_runtime_migrations()
-        db = SessionLocal()
-        try:
-            ensure_seed_admin(db)
-        finally:
-            db.close()
 
     try:
         await asyncio.wait_for(asyncio.to_thread(_initialize_sync), timeout=90)
