@@ -10,12 +10,15 @@ const sampleData = [
 describe("LiveChart", () => {
   it("renders chart container div", () => {
     const { container } = render(<LiveChart data={sampleData} />);
+    // lightweight-charts creates a chart inside a container div without ARIA roles
+    // eslint-disable-next-line testing-library/no-container, testing-library/no-node-access
     const chartDiv = container.querySelector("div[class*='h-80']");
     expect(chartDiv).toBeInTheDocument();
   });
 
   it("renders container without crash when data empty", () => {
     const { container } = render(<LiveChart data={[]} />);
+    // eslint-disable-next-line testing-library/no-container, testing-library/no-node-access
     expect(container.querySelector(".w-full")).toBeInTheDocument();
   });
 
@@ -23,6 +26,7 @@ describe("LiveChart", () => {
     const { container } = render(
       <LiveChart data={sampleData} livePrice={null} />
     );
+    // eslint-disable-next-line testing-library/no-container, testing-library/no-node-access
     expect(container.querySelector(".w-full")).toBeInTheDocument();
   });
 
@@ -33,6 +37,7 @@ describe("LiveChart", () => {
         livePrice={{ time: "2025-01-03T12:00:00Z", price: 108 }}
       />
     );
+    // eslint-disable-next-line testing-library/no-container, testing-library/no-node-access
     expect(container.querySelector(".w-full")).toBeInTheDocument();
   });
 });

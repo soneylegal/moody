@@ -76,6 +76,7 @@ describe("MetricCard", () => {
         className="col-span-2"
       />
     );
+    // eslint-disable-next-line testing-library/no-container, testing-library/no-node-access
     const glassCard = container.querySelector(".glass-card");
     expect(glassCard?.className).toContain("col-span-2");
   });
