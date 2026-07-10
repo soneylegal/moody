@@ -26,5 +26,6 @@ yarn-error.log*
 
 # Python Build / Cache
 *.egg-info/
+build/
 .pytest_cache/
 .rebase-editor.sh
