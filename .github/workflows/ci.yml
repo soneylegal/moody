@@ -18,7 +18,7 @@ jobs:
           POSTGRES_PASSWORD: test
           POSTGRES_DB: testdb
         ports:
-          - 5432:5432
+          - 5433:5432
         options: >-
           --health-cmd pg_isready
           --health-interval 10s
@@ -45,7 +45,7 @@ jobs:
       - name: Run tests
         working-directory: backend
         env:
-          DATABASE_URL: postgresql+psycopg://test:test@localhost:5432/testdb
+          DATABASE_URL: postgresql+psycopg://test:test@localhost:5433/testdb
           JWT_SECRET_KEY: ${{ secrets.JWT_SECRET_KEY }}
           FIELD_ENCRYPTION_KEY: ${{ secrets.FIELD_ENCRYPTION_KEY }}
         run: pytest tests/ -v --tb=short --cov=app --cov-report=term-missing

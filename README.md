@@ -237,8 +237,8 @@ Isso inicializa **5 serviços** orquestrados:
 
 ```mermaid
 graph LR
-    PG["🐘 PostgreSQL<br/>:5432"]
-    RD["⚡ Redis<br/>:6379"]
+    PG["🐘 PostgreSQL<br/>:5433"]
+    RD["⚡ Redis<br/>:6380"]
     API["🚀 FastAPI<br/>:8000"]
     CW["⚙️ Celery Worker"]
     CB["⏰ Celery Beat"]
@@ -260,12 +260,12 @@ graph LR
 
 | Serviço | URL |
 |---------|-----|
-| 🚀 API REST | [`http://localhost:8000`](http://localhost:8000) |
+| 🚀 API REST + Web UI | [`http://localhost:8000`](http://localhost:8000) |
 | 📖 Swagger UI | [`http://localhost:8000/docs`](http://localhost:8000/docs) |
 | 📡 WebSocket | `ws://localhost:8000/ws/market/{ASSET}` |
-| 🖥️ Frontend | [`http://localhost:3000`](http://localhost:3000) |
-| 🐘 PostgreSQL | `localhost:5432` |
-| ⚡ Redis | `localhost:6379` |
+| 🖥️ Frontend (dev `npm start`) | [`http://localhost:3000`](http://localhost:3000) |
+| 🐘 PostgreSQL | `localhost:5433` |
+| ⚡ Redis | `localhost:6380` |
 
 ### Reset completo
 
@@ -382,6 +382,7 @@ graph TB
 | **CORS** | Whitelist via `CORS_ORIGINS` | Bloqueio de origens não autorizadas |
 | **Circuit Breaker** | Padrão de resiliência | Proteção contra cascading failures |
 | **Fail-Fast Startup** | `sys.exit(1)` se secrets ausentes | Impede boot inseguro |
+| **No Seed Admin** | Admin não é auto-criado no boot | Primeiro admin via `POST /auth/register` |
 
 ---
 
@@ -445,7 +446,7 @@ A pipeline CI roda automaticamente em push para `main` e `feature/*`, e em pull 
 | `REDIS_URL` | ✅ | — | URL do Redis para cache e broker (`redis://...`) |
 | `JWT_SECRET_KEY` | ✅ | — | Secret para assinatura JWT (mín. 64 chars) |
 | `FIELD_ENCRYPTION_KEY` | ✅ | — | Chave Fernet para encriptação de API keys |
-| `CORS_ORIGINS` | ❌ | `localhost:*` | Origens permitidas (separadas por vírgula) |
+| `CORS_ORIGINS` | ❌ | `http://localhost:8000,http://localhost:3000` | Origens permitidas (separadas por vírgula) |
 | `MARKET_STREAM_INTERVAL_SECONDS` | ❌ | `2.0` | Intervalo do stream de preço em segundos |
 | `JWT_ALGORITHM` | ❌ | `HS256` | Algoritmo de assinatura JWT |
 | `JWT_EXPIRE_MINUTES` | ❌ | `120` | Tempo de expiração do access token |
