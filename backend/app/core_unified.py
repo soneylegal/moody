@@ -89,7 +89,7 @@ def get_or_create_status(db: Session) -> models.BotStatus:
     row = db.query(models.BotStatus).first()
     if row:
         return row
-    row = models.BotStatus(status="Running", daily_pnl=Decimal("0.00"), current_asset="PETR4")
+    row = models.BotStatus(status="Running", daily_pnl=Decimal("0.00"), current_asset="BTC")
     db.add(row)
     db.commit()
     db.refresh(row)
@@ -100,7 +100,7 @@ def get_or_create_strategy(db: Session) -> models.StrategyConfig:
     row = db.query(models.StrategyConfig).order_by(desc(models.StrategyConfig.updated_at)).first()
     if row:
         return row
-    row = models.StrategyConfig(asset="PETR4", timeframe="5M", ma_short_period=9, ma_long_period=21)
+    row = models.StrategyConfig(asset="BTC", timeframe="5M", ma_short_period=9, ma_long_period=21)
     db.add(row)
     db.commit()
     db.refresh(row)

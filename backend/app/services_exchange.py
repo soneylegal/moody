@@ -33,6 +33,7 @@ from app.circuit_breaker import CircuitBreaker
 
 ccxt_breaker = CircuitBreaker("ccxt_api", failure_threshold=3, recovery_timeout_seconds=5.0)
 yfinance_breaker = CircuitBreaker("yfinance_api", failure_threshold=3, recovery_timeout_seconds=5.0)
+brapi_breaker = CircuitBreaker("brapi_api", failure_threshold=3, recovery_timeout_seconds=5.0)
 
 
 
@@ -269,7 +270,7 @@ class ExchangeService:
             )
         return dense
 
-    def _http_get_json(self, url: str, timeout: int = 10, retries: int = 3) -> dict[str, Any] | None:
+    def _http_get_json(self, url: str, timeout: int = 10, retries: int = 3, breaker: CircuitBreaker | None = None) -> dict[str, Any] | None:
         if requests is None:
             return None
         
@@ -287,7 +288,9 @@ class ExchangeService:
         last_error = None
         for attempt in range(retries):
             try:
-                return yfinance_breaker.call(_get)
+                if breaker:
+                    return breaker.call(_get)
+                return _get()
             except Exception as exc:
                 last_error = exc
                 if attempt < retries - 1:
@@ -491,66 +494,12 @@ class ExchangeService:
         interval = self._to_yf_interval(timeframe)
         points: list[dict[str, Any]] = []
 
-        if yf is not None:
-            try:
-                df = self._download_yf_close(symbol, period="5d", interval=interval)
-                opens, highs, lows, closes, times = self._extract_ohlc_values(df)
-                points = self._serialize_ohlc(times, opens, highs, lows, closes)
-                if len(points) >= min_points:
-                    return points[-max(limit, min_points):]
-            except Exception as exc:
-                logger.warning("Falha histórico yfinance download para %s: %s", asset, exc)
-
-            try:
-                ticker = yf.Ticker(symbol, session=YF_SESSION)
-                df = ticker.history(period="5d", interval=interval, auto_adjust=False)
-                opens, highs, lows, closes, times = self._extract_ohlc_values(df)
-                points = self._serialize_ohlc(times, opens, highs, lows, closes)
-                if len(points) >= min_points:
-                    return points[-max(limit, min_points):]
-            except Exception as exc:
-                logger.warning("Falha histórico yfinance ticker para %s: %s", asset, exc)
-
-        # Fallback HTTP direto Yahoo
-        yahoo_url = f"https://query1.finance.yahoo.com/v8/finance/chart/{symbol}?range=5d&interval={interval}"
-        yahoo_json = self._http_get_json(yahoo_url, retries=3)
-        if yahoo_json:
-            try:
-                result = (yahoo_json.get("chart") or {}).get("result") or []
-                if result:
-                    first = result[0]
-                    timestamps = first.get("timestamp") or []
-                    indicators = ((first.get("indicators") or {}).get("quote") or [{}])[0]
-                    opens = indicators.get("open") or []
-                    highs = indicators.get("high") or []
-                    lows = indicators.get("low") or []
-                    closes = indicators.get("close") or []
-                    parsed_points: list[dict[str, Any]] = []
-                    for ts, o, h, l, c in zip(timestamps, opens, highs, lows, closes):
-                        dt = datetime.fromtimestamp(float(ts), tz=timezone.utc)
-                        candle = self._sanitize_candle(
-                            {
-                                "time": dt.isoformat(),
-                                "open": o,
-                                "high": h,
-                                "low": l,
-                                "close": c,
-                            }
-                        )
-                        if candle:
-                            parsed_points.append(candle)
-                    points = parsed_points
-                    if len(points) >= min_points:
-                        return points[-max(limit, min_points):]
-            except Exception as exc:
-                logger.warning("Falha parse Yahoo HTTP para %s: %s", asset, exc)
-
-        # Fallback HTTP direto BRAPI (retry)
-        brapi_interval = self._to_brapi_interval(timeframe)
-        brapi_url = f"https://brapi.dev/api/quote/{asset}?range=5d&interval={brapi_interval}&fundamental=false"
-        brapi_json = self._http_get_json(brapi_url, retries=3)
-        if brapi_json:
-            try:
+        # 1. Try BRAPI first
+        try:
+            brapi_interval = self._to_brapi_interval(timeframe)
+            brapi_url = f"https://brapi.dev/api/quote/{asset}?range=5d&interval={brapi_interval}&fundamental=false"
+            brapi_json = self._http_get_json(brapi_url, retries=3, breaker=brapi_breaker)
+            if brapi_json:
                 results = brapi_json.get("results") or []
                 parsed_points: list[dict[str, Any]] = []
                 if results:
@@ -578,8 +527,63 @@ class ExchangeService:
                 points = parsed_points
                 if len(points) >= min_points:
                     return points[-max(limit, min_points):]
+        except Exception as exc:
+            logger.warning("Falha parse BRAPI para %s: %s", asset, exc)
+
+        # 2. Fallback to yfinance / Yahoo
+        if yf is not None:
+            try:
+                df = self._download_yf_close(symbol, period="5d", interval=interval)
+                opens, highs, lows, closes, times = self._extract_ohlc_values(df)
+                points = self._serialize_ohlc(times, opens, highs, lows, closes)
+                if len(points) >= min_points:
+                    return points[-max(limit, min_points):]
             except Exception as exc:
-                logger.warning("Falha parse BRAPI para %s: %s", asset, exc)
+                logger.warning("Falha histórico yfinance download para %s: %s", asset, exc)
+
+            try:
+                ticker = yf.Ticker(symbol, session=YF_SESSION)
+                df = ticker.history(period="5d", interval=interval, auto_adjust=False)
+                opens, highs, lows, closes, times = self._extract_ohlc_values(df)
+                points = self._serialize_ohlc(times, opens, highs, lows, closes)
+                if len(points) >= min_points:
+                    return points[-max(limit, min_points):]
+            except Exception as exc:
+                logger.warning("Falha histórico yfinance ticker para %s: %s", asset, exc)
+
+        # 3. Fallback HTTP direto Yahoo
+        try:
+            yahoo_url = f"https://query1.finance.yahoo.com/v8/finance/chart/{symbol}?range=5d&interval={interval}"
+            yahoo_json = self._http_get_json(yahoo_url, retries=3, breaker=yfinance_breaker)
+            if yahoo_json:
+                result = (yahoo_json.get("chart") or {}).get("result") or []
+                if result:
+                    first = result[0]
+                    timestamps = first.get("timestamp") or []
+                    indicators = ((first.get("indicators") or {}).get("quote") or [{}])[0]
+                    opens = indicators.get("open") or []
+                    highs = indicators.get("high") or []
+                    lows = indicators.get("low") or []
+                    closes = indicators.get("close") or []
+                    parsed_points: list[dict[str, Any]] = []
+                    for ts, o, h, l, c in zip(timestamps, opens, highs, lows, closes):
+                        dt = datetime.fromtimestamp(float(ts), tz=timezone.utc)
+                        candle = self._sanitize_candle(
+                            {
+                                "time": dt.isoformat(),
+                                "open": o,
+                                "high": h,
+                                "low": l,
+                                "close": c,
+                            }
+                        )
+                        if candle:
+                            parsed_points.append(candle)
+                    points = parsed_points
+                    if len(points) >= min_points:
+                        return points[-max(limit, min_points):]
+        except Exception as exc:
+            logger.warning("Falha parse Yahoo HTTP para %s: %s", asset, exc)
 
         points = self._ensure_min_points(points, min_points)
         return points[-max(limit, min_points):] if points else []
@@ -693,8 +697,24 @@ class ExchangeService:
 
         symbol = self._to_yfinance_ticker(asset)
 
+        # 1. Try BRAPI first
+        if not self._is_crypto_asset(asset):
+            brapi_url = f"https://brapi.dev/api/quote/{asset}?fundamental=false"
+            brapi_json = self._http_get_json(brapi_url, retries=2, breaker=brapi_breaker)
+            if brapi_json:
+                try:
+                    rows = brapi_json.get("results") or []
+                    if rows:
+                        price = float(rows[0].get("regularMarketPrice") or rows[0].get("close") or 0)
+                        if math.isfinite(price) and price > 0:
+                            self._spot_cache[asset] = (now, price)
+                            return price
+                except Exception:
+                    pass
+
+        # 2. Fallback to Yahoo Finance HTTP quote
         quote_url = f"https://query1.finance.yahoo.com/v7/finance/quote?symbols={symbol}"
-        quote_json = self._http_get_json(quote_url, retries=2)
+        quote_json = self._http_get_json(quote_url, retries=2, breaker=yfinance_breaker)
         if quote_json:
             try:
                 rows = ((quote_json.get("quoteResponse") or {}).get("result") or [])
@@ -706,8 +726,9 @@ class ExchangeService:
             except Exception:
                 pass
 
+        # 3. Fallback to Yahoo Finance HTTP chart
         chart_url = f"https://query1.finance.yahoo.com/v8/finance/chart/{symbol}?interval=1m&range=1d"
-        chart_json = self._http_get_json(chart_url, retries=2)
+        chart_json = self._http_get_json(chart_url, retries=2, breaker=yfinance_breaker)
         if chart_json:
             try:
                 result = (chart_json.get("chart") or {}).get("result") or []
@@ -719,20 +740,6 @@ class ExchangeService:
                         return price
             except Exception:
                 pass
-
-        if not self._is_crypto_asset(asset):
-            brapi_url = f"https://brapi.dev/api/quote/{asset}?fundamental=false"
-            brapi_json = self._http_get_json(brapi_url, retries=2)
-            if brapi_json:
-                try:
-                    rows = brapi_json.get("results") or []
-                    if rows:
-                        price = float(rows[0].get("regularMarketPrice") or rows[0].get("close") or 0)
-                        if math.isfinite(price) and price > 0:
-                            self._spot_cache[asset] = (now, price)
-                            return price
-                except Exception:
-                    pass
 
         if yf is not None:
             try:

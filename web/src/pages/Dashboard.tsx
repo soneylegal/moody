@@ -5,13 +5,10 @@ import { LiveChart } from "../components/LiveChart";
 import {
   Wallet,
   TrendingUp,
-  ArrowUpRight,
-  ArrowDownRight,
   TrendingDown,
   RefreshCw,
   Search,
   ShoppingCart,
-  Percent,
 } from "lucide-react";
 
 interface Order {

@@ -24,7 +24,7 @@ class ApiService {
       },
     });
 
-    if (response.status === 401) {
+    if (response.status === 401 && endpoint !== "/auth/login") {
       // Token expired or invalid, clear storage
       localStorage.removeItem("token");
       localStorage.removeItem("refreshToken");
