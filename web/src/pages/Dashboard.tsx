@@ -52,18 +52,15 @@ export const Dashboard: React.FC = () => {
   const [orderSuccess, setOrderSuccess] = useState<string | null>(null);
   const [submittingOrder, setSubmittingOrder] = useState(false);
   const [loading, setLoading] = useState(true);
+  const [showStale, setShowStale] = useState(false);
   const prevPriceRef = useRef<number | null>(null);
   const wsRef = useRef<WebSocket | null>(null);
 
   const fetchDashboardData = async (activeAsset: string) => {
     try {
-      // Fetch paper trading state
       const paperData = await api.request<PaperState>(`/paper/state?asset=${activeAsset}`);
       setState(paperData);
 
-      // Fetch historical data for the chart from /backtest/run or similar endpoint, 
-      // or default mock data if not available.
-      // Let's call /backtest/run to get some charts
       const chartResult = await api.request<any>("/backtest/run", {
         method: "POST",
         body: JSON.stringify({
@@ -75,7 +72,6 @@ export const Dashboard: React.FC = () => {
       if (chartResult && chartResult.price_chart) {
         setHistoricalData(chartResult.price_chart);
       } else {
-        // Fallback mockup historical candles
         const fakeData = Array.from({ length: 50 }).map((_, i) => {
           const date = new Date();
           date.setHours(date.getHours() - (50 - i));
@@ -103,43 +99,78 @@ export const Dashboard: React.FC = () => {
   useEffect(() => {
     fetchDashboardData(asset);
 
-    // Setup WebSocket connection
-    const wsUrl = api.getWebSocketUrl(`/ws/market/${asset}`);
-    const ws = new WebSocket(wsUrl);
-    wsRef.current = ws;
+    const MAX_ATTEMPTS = 8;
+    let ws: WebSocket | null = null;
+    let reconnectAttempts = 0;
+    let reconnectTimer: ReturnType<typeof setTimeout> | null = null;
+    let disposed = false;
 
-    ws.onmessage = (event) => {
-      try {
-        const msg = JSON.parse(event.data);
-        if (msg.price) {
-          const newPrice = Number(msg.price);
-          setLivePrice({
-            time: msg.tick_at || new Date().toISOString(),
-            price: newPrice,
-          });
+    const connect = () => {
+      const wsUrl = api.getWebSocketUrl(`/ws/market/${asset}`);
+      ws = new WebSocket(wsUrl);
+      wsRef.current = ws;
 
-          // Flash green/red on price update
-          if (prevPriceRef.current !== null) {
-            if (newPrice > prevPriceRef.current) {
-              setPriceColorClass("text-emerald-400 text-glow-green");
-            } else if (newPrice < prevPriceRef.current) {
-              setPriceColorClass("text-rose-400 text-glow-red");
+      ws.onopen = () => {
+        reconnectAttempts = 0;
+        setShowStale(false);
+      };
+
+      ws.onmessage = (event) => {
+        try {
+          const msg = JSON.parse(event.data);
+          if (msg.price) {
+            const newPrice = Number(msg.price);
+            setLivePrice({
+              time: msg.tick_at || new Date().toISOString(),
+              price: newPrice,
+            });
+
+            if (prevPriceRef.current !== null) {
+              if (newPrice > prevPriceRef.current) {
+                setPriceColorClass("text-emerald-400 text-glow-green");
+              } else if (newPrice < prevPriceRef.current) {
+                setPriceColorClass("text-rose-400 text-glow-red");
+              }
             }
-          }
-          prevPriceRef.current = newPrice;
+            prevPriceRef.current = newPrice;
 
-          // Reset text color after a second
-          setTimeout(() => {
-            setPriceColorClass("text-slate-100");
-          }, 800);
+            setTimeout(() => {
+              setPriceColorClass("text-slate-100");
+            }, 800);
+          }
+        } catch (err) {
+          console.error("Error parsing WS message:", err);
         }
-      } catch (err) {
-        console.error("Error parsing WS message:", err);
-      }
+      };
+
+      ws.onerror = () => {};
+
+      ws.onclose = () => {
+        if (disposed) return;
+        if (reconnectAttempts >= MAX_ATTEMPTS) {
+          setShowStale(true);
+          return;
+        }
+        if (reconnectTimer) clearTimeout(reconnectTimer);
+        const delay = Math.min(1000 * Math.pow(2, reconnectAttempts), 15000) + Math.random() * 250;
+        reconnectAttempts += 1;
+        reconnectTimer = setTimeout(connect, delay);
+      };
     };
 
+    connect();
+
     return () => {
-      ws.close();
+      disposed = true;
+      if (reconnectTimer) clearTimeout(reconnectTimer);
+      if (ws) {
+        ws.onclose = null;
+        ws.close();
+      }
+      if (wsRef.current) {
+        wsRef.current.onclose = null;
+        wsRef.current.close();
+      }
       wsRef.current = null;
     };
   }, [asset]);
@@ -232,6 +263,14 @@ export const Dashboard: React.FC = () => {
 
   return (
     <div className="space-y-8">
+      {/* Stale data warning */}
+      {showStale && (
+        <div className="p-3 bg-amber-500/10 border border-amber-500/20 text-amber-400 text-xs rounded-xl flex items-center gap-2">
+          <span className="w-2 h-2 rounded-full bg-amber-400 animate-pulse" />
+          Cotações offline — reconectando...
+        </div>
+      )}
+
       {/* Search Header */}
       <div className="flex flex-wrap items-center justify-between gap-4">
         <form onSubmit={handleSearch} className="flex gap-2 max-w-sm w-full">

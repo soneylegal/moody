@@ -17,14 +17,51 @@ class ConnectionManager:
     def __init__(self):
         self.connections: dict[str, set[WebSocket]] = {}
         self.close_requests: set[str] = set()
+        self.ip_connections: dict[str, set[WebSocket]] = {}
+        self.MAX_PER_ASSET = 100
+        self.MAX_PER_IP_PER_ASSET = 5
+        self.MAX_PER_IP_TOTAL = 20
 
-    async def connect(self, asset: str, websocket: WebSocket):
+    @staticmethod
+    def _client_ip(websocket: WebSocket) -> str:
+        xff = websocket.headers.get("x-forwarded-for")
+        if xff:
+            return xff.split(",")[0].strip()
+        if websocket.client:
+            return websocket.client[0]
+        return "unknown"
+
+    async def connect(self, asset: str, websocket: WebSocket) -> bool:
+        """Try to accept a WebSocket connection. Returns True on success, False if capped."""
+        client_ip = self._client_ip(websocket)
+
+        if len(self.connections.get(asset, set())) >= self.MAX_PER_ASSET:
+            await websocket.close(code=1013, reason="Limite de conexões por ativo atingido")
+            return False
+
+        ip_asset_count = sum(
+            1 for ws in self.connections.get(asset, set())
+            if self._client_ip(ws) == client_ip
+        )
+        if ip_asset_count >= self.MAX_PER_IP_PER_ASSET:
+            await websocket.close(code=1013, reason="Limite de conexões por IP/ativo atingido")
+            return False
+
+        if len(self.ip_connections.get(client_ip, set())) >= self.MAX_PER_IP_TOTAL:
+            await websocket.close(code=1013, reason="Limite total de conexões por IP atingido")
+            return False
+
         await websocket.accept()
         self.connections.setdefault(asset, set()).add(websocket)
+        self.ip_connections.setdefault(client_ip, set()).add(websocket)
+        return True
 
     def disconnect(self, asset: str, websocket: WebSocket):
         if asset in self.connections and websocket in self.connections[asset]:
             self.connections[asset].remove(websocket)
+        client_ip = self._client_ip(websocket)
+        if client_ip in self.ip_connections and websocket in self.ip_connections[client_ip]:
+            self.ip_connections[client_ip].remove(websocket)
 
     async def broadcast(self, asset: str, payload: dict):
         peers = list(self.connections.get(asset, set()))

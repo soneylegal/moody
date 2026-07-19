@@ -55,6 +55,8 @@ def db_session():
 @pytest.fixture()
 def client(db_session):
     """Provide a FastAPI TestClient with database overridden to test session."""
+    from app.limiter import limiter
+    limiter.enabled = False
 
     def _override_get_db():
         try:

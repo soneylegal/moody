@@ -19,6 +19,7 @@ dependencies = [
     "numpy==2.2.6",
     "ccxt==4.4.95",
     "cryptography>=44.0.0",
+    "slowapi>=0.1.9",
     "yfinance==0.2.54",
     "redis>=5.0.1",
     "celery>=5.4.0",

@@ -1,12 +1,13 @@
 import logging
 
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Request
 from sqlalchemy.orm import Session
 
 from app.asset_universe import ALL_ASSETS, B3_TOP20, CRYPTO_TOP10
 from app.core_unified import get_latest_backtest, run_backtest
 from app.db import get_db
 from app.deps import get_current_user
+from app.limiter import limiter
 from app.models import User, BacktestResult
 from app.schemas import AssetUniverseOut, BacktestResponse, BacktestRunIn, MonteCarloRunIn, MonteCarloResponse
 from app.services_montecarlo import run_monte_carlo_simulation
@@ -60,13 +61,17 @@ def run_backtest_route(
 
 
 @router.post("/montecarlo", response_model=MonteCarloResponse)
+@limiter.limit("2/minute")
 def run_monte_carlo_route(
     payload: MonteCarloRunIn,
+    request: Request,
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
     if payload.asset and payload.asset.upper() not in ALL_ASSETS:
         raise HTTPException(status_code=400, detail="Ativo inválido para backtest")
+    if payload.n_simulations * payload.n_days > 250_000:
+        raise HTTPException(status_code=422, detail="n_simulations * n_days excede o limite de 250.000")
     try:
         # Run a backtest first to generate the latest equity curve
         run_backtest(db, payload.period_label, user_id=current_user.id, asset=payload.asset)
