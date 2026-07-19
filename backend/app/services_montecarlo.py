@@ -6,7 +6,6 @@ based on historical returns of the backtest.
 
 from __future__ import annotations
 
-import random
 import numpy as np
 
 
@@ -53,32 +52,27 @@ def run_monte_carlo_simulation(
     if not returns:
         returns = [0.0]
 
-    # Pre-allocate simulated paths for vectorised percentile calculations
-    # shape: (n_simulations, n_days)
+    rng = np.random.default_rng()
+    ret_array = np.array(returns, dtype=np.float64)
+
+    # Generate all random bootstrap indices upfront
+    idx = rng.integers(0, len(ret_array), size=(n_simulations, n_days - 1))
+    sampled_returns = ret_array[idx]
+
+    # Vectorized path computation: cumulative product of (1 + returns)
+    growth = np.cumprod(1.0 + sampled_returns, axis=1)
+
     paths = np.zeros((n_simulations, n_days))
     paths[:, 0] = initial_capital
+    paths[:, 1:] = initial_capital * growth
 
-    ruin_count = 0
-    all_final_equities = []
+    paths = np.maximum(paths, 0.0)
 
-    for sim in range(n_simulations):
-        current_equity = initial_capital
-        ruined = False
-        for step in range(1, n_days):
-            # Bootstrap resample a return
-            ret = random.choice(returns)
-            current_equity = current_equity * (1.0 + ret)
-            if current_equity < 0:
-                current_equity = 0.0
-            paths[sim, step] = current_equity
+    all_final_equities = paths[:, -1].tolist()
 
-            # Check if equity drops below ruin threshold
-            if current_equity < (initial_capital * ruin_threshold_pct):
-                ruined = True
-
-        all_final_equities.append(current_equity)
-        if ruined:
-            ruin_count += 1
+    ruin_threshold = initial_capital * ruin_threshold_pct
+    ruined_mask = np.any(paths < ruin_threshold, axis=1)
+    ruin_count = int(ruined_mask.sum())
 
     # Calculate fan chart percentiles at each step
     fan_chart = {}

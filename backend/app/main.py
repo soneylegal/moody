@@ -1,5 +1,5 @@
 import asyncio
-from datetime import datetime, timezone
+import json
 from pathlib import Path
 
 from fastapi import FastAPI
@@ -8,12 +8,12 @@ from fastapi import WebSocket, WebSocketDisconnect
 from fastapi.staticfiles import StaticFiles
 
 from app.config import API_TITLE, API_VERSION, CORS_ORIGINS
+from app.security import decode_access_token
 from app.core_unified import ensure_seed_admin
 from app.db import Base, SessionLocal, apply_runtime_migrations, engine
-from app.models import AppSettings, MarketTick
+from app.limiter import limiter
 from app.routers import auth, backtest, dashboard, logs, paper, settings, strategy
 from app.services_bot import bot_automation_loop
-from app.services_exchange import ExchangeService
 from app.services_stream import manager, market_stream_loop
 
 app = FastAPI(title=API_TITLE, version=API_VERSION)
@@ -34,6 +34,8 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+app.state.limiter = limiter
 
 from app.config import FAULT_INJECTION_ENABLED
 if FAULT_INJECTION_ENABLED:
@@ -95,49 +97,46 @@ def health():
     }
 
 
+def _get_token_from_ws(websocket: WebSocket) -> str | None:
+    return websocket.query_params.get("token")
+
+
 @app.websocket("/ws/market/{asset}")
 async def market_ws(websocket: WebSocket, asset: str):
+    token = _get_token_from_ws(websocket)
+    if not token:
+        await websocket.close(code=4401, reason="Token de autenticação não fornecido")
+        return
+
+    try:
+        payload = decode_access_token(token)
+        if payload.get("type", "access") != "access":
+            raise ValueError("invalid token type")
+    except Exception:
+        await websocket.close(code=4401, reason="Token inválido ou expirado")
+        return
+
+    origin = (websocket.headers.get("origin") or "").lower()
+    if origin and origin not in {o.lower() for o in CORS_ORIGINS}:
+        await websocket.close(code=1008, reason="Origin não permitido")
+        return
+
     asset = asset.upper()
-    await manager.connect(asset, websocket)
+
+    connected = await manager.connect(asset, websocket)
+    if not connected:
+        return
+
     try:
         while True:
-            await websocket.receive_text()
-
-            db = SessionLocal()
+            raw = await websocket.receive_text()
             try:
-                settings = db.query(AppSettings).first()
-                price = None
-                if settings:
-                    service = ExchangeService(settings)
-                    price = service.fetch_spot_price(asset, db=db)
-
-                if not price or float(price) <= 0:
-                    last_tick = (
-                        db.query(MarketTick)
-                        .filter(MarketTick.asset == asset)
-                        .order_by(MarketTick.tick_at.desc())
-                        .first()
-                    )
-                    price = float(last_tick.price) if last_tick and float(last_tick.price) > 0 else 0.0
-
-                if not price or float(price) <= 0:
-                    await websocket.send_json({"asset": asset, "error": "PRICE_UNAVAILABLE"})
-                    continue
-
-                db.add(MarketTick(asset=asset, price=float(price), volume=0, tick_at=datetime.now(timezone.utc)))
-                db.commit()
-
-                await manager.broadcast(
-                    asset,
-                    {
-                        "asset": asset,
-                        "price": float(price),
-                        "volume": 0.0,
-                        "tick_at": datetime.now(timezone.utc).isoformat(),
-                    },
-                )
-            finally:
-                db.close()
+                data = json.loads(raw)
+            except json.JSONDecodeError:
+                continue
+            op = data.get("op") if isinstance(data, dict) else None
+            if op == "ping":
+                await websocket.send_json({"op": "pong"})
     except WebSocketDisconnect:
         manager.disconnect(asset, websocket)
     except Exception:

@@ -59,3 +59,20 @@ def test_monte_carlo_api_endpoint(client, auth_headers):
         assert "metrics" in data
         assert "fan_chart" in data
         assert len(data["fan_chart"]["p50"]) == 30
+
+
+def test_montecarlo_rejects_oversized_request(client, auth_headers):
+    """Monte Carlo with n_simulations * n_days > 250_000 should return 422."""
+    payload = {
+        "n_simulations": 2000,
+        "n_days": 1000,
+        "asset": "BTC",
+        "period_label": "1 Month",
+    }
+    resp = client.post("/backtest/montecarlo", json=payload, headers=auth_headers)
+    assert resp.status_code == 422
+
+    # Boundary: exactly 250_000 should be accepted
+    payload["n_days"] = 125
+    resp = client.post("/backtest/montecarlo", json=payload, headers=auth_headers)
+    assert resp.status_code in (200, 400)  # 200 if backtest runs, 400 if no data

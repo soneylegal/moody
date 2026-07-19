@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Depends, HTTPException, Query
+from fastapi import APIRouter, Depends, HTTPException, Query, Request
 from sqlalchemy.orm import Session
 
 from app import models
@@ -11,6 +11,7 @@ from app.core_unified import (
 )
 from app.db import get_db
 from app.deps import get_current_user
+from app.limiter import limiter
 from app.models import User
 from app.schemas import PaperOrderIn, PaperOrderOut, PaperStateResponse
 
@@ -18,7 +19,9 @@ router = APIRouter(prefix="/paper", tags=["Paper Trading"])
 
 
 @router.get("/state", response_model=PaperStateResponse)
+@limiter.limit("30/minute")
 def get_state(
+    request: Request,
     asset: str | None = Query(None, description="Ativo de foco para preço/PnL"),
     db: Session = Depends(get_db),
     _: User = Depends(get_current_user),
@@ -27,7 +30,9 @@ def get_state(
 
 
 @router.get("/orders/recent", response_model=list[PaperOrderOut])
+@limiter.limit("30/minute")
 def get_recent_orders(
+    request: Request,
     limit: int = Query(25, ge=1, le=100, description="Quantidade de ordens para retornar"),
     db: Session = Depends(get_db),
     _: User = Depends(get_current_user),
@@ -36,7 +41,8 @@ def get_recent_orders(
 
 
 @router.post("/buy", response_model=PaperOrderOut)
-def buy(payload: PaperOrderIn, db: Session = Depends(get_db), _: User = Depends(get_current_user)):
+@limiter.limit("30/minute")
+def buy(payload: PaperOrderIn, request: Request, db: Session = Depends(get_db), _: User = Depends(get_current_user)):
     try:
         order = create_live_or_paper_order(db, models.OrderSide.buy, payload, user_id=_.id)
     except ValueError as exc:
@@ -58,7 +64,8 @@ def buy(payload: PaperOrderIn, db: Session = Depends(get_db), _: User = Depends(
 
 
 @router.post("/sell", response_model=PaperOrderOut)
-def sell(payload: PaperOrderIn, db: Session = Depends(get_db), _: User = Depends(get_current_user)):
+@limiter.limit("30/minute")
+def sell(payload: PaperOrderIn, request: Request, db: Session = Depends(get_db), _: User = Depends(get_current_user)):
     try:
         order = create_live_or_paper_order(db, models.OrderSide.sell, payload, user_id=_.id)
     except ValueError as exc:
@@ -80,7 +87,8 @@ def sell(payload: PaperOrderIn, db: Session = Depends(get_db), _: User = Depends
 
 
 @router.post("/close", response_model=PaperOrderOut)
-def close_position(db: Session = Depends(get_db), _: User = Depends(get_current_user)):
+@limiter.limit("30/minute")
+def close_position(request: Request, db: Session = Depends(get_db), _: User = Depends(get_current_user)):
     try:
         order = close_open_position(db, user_id=_.id)
     except ValueError as exc:
@@ -108,7 +116,9 @@ def close_position(db: Session = Depends(get_db), _: User = Depends(get_current_
 
 
 @router.post("/reset", response_model=PaperStateResponse)
+@limiter.limit("30/minute")
 def reset_wallet(
+    request: Request,
     initial_balance: float | None = Query(None, gt=0, description="Saldo inicial customizado para reset da carteira"),
     db: Session = Depends(get_db),
     _: User = Depends(get_current_user),

@@ -43,7 +43,9 @@ class ApiService {
   getWebSocketUrl(endpoint: string): string {
     const wsProto = window.location.protocol === "https:" ? "wss:" : "ws:";
     const baseUrl = API_BASE_URL.replace(/^https?:\/\//, "");
-    return `${wsProto}//${baseUrl}${endpoint}`;
+    const token = localStorage.getItem("token") || "";
+    const separator = endpoint.includes("?") ? "&" : "?";
+    return `${wsProto}//${baseUrl}${endpoint}${separator}token=${encodeURIComponent(token)}`;
   }
 }
 

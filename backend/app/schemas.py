@@ -2,7 +2,7 @@ from datetime import datetime
 from enum import Enum
 from typing import Any
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, model_validator
 
 
 class TradeModeEnum(str, Enum):
@@ -123,10 +123,16 @@ class BacktestRunIn(BaseModel):
 
 
 class MonteCarloRunIn(BaseModel):
-    n_simulations: int = Field(1000, ge=10, le=10000)
-    n_days: int = Field(252, ge=10, le=1000)
+    n_simulations: int = Field(1000, ge=10, le=2000)
+    n_days: int = Field(252, ge=10, le=500)
     asset: str | None = None
     period_label: str = "6 Months"
+
+    @model_validator(mode="after")
+    def _check_budget(self):
+        if self.n_simulations * self.n_days > 250_000:
+            raise ValueError("n_simulations * n_days excede o limite de 250.000")
+        return self
 
 
 
